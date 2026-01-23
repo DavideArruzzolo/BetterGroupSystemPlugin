@@ -4,6 +4,7 @@ import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.util.Config;
+import dzve.command.BaseGroupCommand;
 import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.service.group.GroupService;
 
@@ -14,6 +15,7 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
 
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     private final Config<BetterGroupSystemPluginConfig> config;
+    private static GroupService groupService;
 
     public BetterGroupSystemPlugin(@Nonnull JavaPluginInit init) {
         super(init);
@@ -26,12 +28,14 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
     protected void setup() {
         LOGGER.atInfo().log("Setting up plugin " + this.getName());
         LOGGER.atInfo().log("Plugin mode: " + config.get().getPluginMode());
-        GroupService.getInstance();
+        groupService = GroupService.getInstance();
         loadConfig();
+        this.getCommandRegistry().registerCommand(new BaseGroupCommand());
     }
 
     @Override
     protected void shutdown() {
+        groupService.shutdown();
         LOGGER.atInfo().log("Shutdown up plugin " + this.getName());
     }
 

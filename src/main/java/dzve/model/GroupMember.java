@@ -15,15 +15,15 @@ public class GroupMember {
     private String playerName;
     private UUID roleId;
     private LocalDateTime joinDate;
-    private boolean online;
-    private UUID groupId;
     private LocalDateTime lastActive;
     private UUID defaultHome;
 
 
-    public GroupMember(UUID playerId, UUID roleId) {
+    public GroupMember(UUID playerId, String playerName, UUID roleId) {
         this.playerId = playerId;
+        this.playerName = playerName;
         this.roleId = roleId;
+        this.lastActive = LocalDateTime.now();
         this.joinDate = LocalDateTime.now();
     }
 }

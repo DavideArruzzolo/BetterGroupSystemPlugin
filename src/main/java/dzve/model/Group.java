@@ -1,5 +1,6 @@
 package dzve.model;
 
+import com.hypixel.hytale.server.core.universe.PlayerRef;
 import dzve.config.BetterGroupSystemPluginConfig;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
@@ -48,18 +49,19 @@ public class Group {
     @Builder.Default
     private Map<UUID, DiplomacyStatus> diplomaticRelations = new HashMap<>();
 
-    public Group(String name, String tag, String description, String color, UUID leaderId) {
+    public Group(String name, String tag, String description, String color, PlayerRef player) {
         this();
         this.name = name;
         this.tag = tag;
         this.description = description;
         this.color = color;
-        this.leaderId = leaderId;
+        this.leaderId = player.getUuid();
+
+        addMember(player, roles.stream().findFirst().orElseThrow().getId());
     }
 
-    public void addMember(UUID playerId, UUID roleId) {
-        GroupMember member = new GroupMember(playerId, roleId);
-        member.setGroupId(id);
+    public void addMember(PlayerRef player, UUID roleId) {
+        GroupMember member = new GroupMember(player.getUuid(), player.getUsername(), roleId);
         members.add(member);
     }
 

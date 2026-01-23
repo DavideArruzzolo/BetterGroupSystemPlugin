@@ -1,5 +1,6 @@
 package dzve.model;
 
+import com.hypixel.hytale.server.core.universe.PlayerRef;
 import dzve.config.BetterGroupSystemPluginConfig;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
@@ -30,19 +31,17 @@ public class Faction extends Group {
     @Builder.Default
     private boolean raidable = false;
 
-    public Faction(String name, String tag, String description, String color, UUID leaderId) {
-        super(name, tag, description, color, leaderId);
-        
-        if (leaderId != null) {
-            playerPower.put(leaderId, BetterGroupSystemPluginConfig.getInstance().getPlayerInitialPower());
-            recalculateTotalPower();
-        }
+    public Faction(String name, String tag, String description, String color, PlayerRef player) {
+        super(name, tag, description, color, player);
+
+        playerPower.put(player.getUuid(), BetterGroupSystemPluginConfig.getInstance().getPlayerInitialPower());
+        recalculateTotalPower();
     }
 
     @Override
-    public void addMember(UUID playerId, UUID roleId) {
-        super.addMember(playerId, roleId);
-        playerPower.put(playerId, BetterGroupSystemPluginConfig.getInstance().getPlayerInitialPower());
+    public void addMember(PlayerRef player, UUID roleId) {
+        super.addMember(player, roleId);
+        playerPower.put(player.getUuid(), BetterGroupSystemPluginConfig.getInstance().getPlayerInitialPower());
         recalculateTotalPower();
     }
 

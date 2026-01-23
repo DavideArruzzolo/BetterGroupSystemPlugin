@@ -1,5 +1,6 @@
 package dzve.model;
 
+import com.hypixel.hytale.server.core.universe.PlayerRef;
 import dzve.config.BetterGroupSystemPluginConfig;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
@@ -25,14 +26,14 @@ public class Guild extends Group {
     @Builder.Default
     private Map<UUID, Double> moneyContributions = new HashMap<>();
 
-    public Guild(String name, String tag, String description, String color, UUID leaderId) {
-        super(name, tag, description, color, leaderId);
+    public Guild(String name, String tag, String description, String color, PlayerRef player) {
+        super(name, tag, description, color, player);
     }
 
     @Override
-    public void addMember(UUID playerId, UUID roleId) {
-        super.addMember(playerId, roleId);
-        moneyContributions.put(playerId, 0.0);
+    public void addMember(PlayerRef player, UUID roleId) {
+        super.addMember(player, roleId);
+        moneyContributions.put(player.getUuid(), 0.0);
     }
 
     @Override

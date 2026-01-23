@@ -11,6 +11,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class GroupRole {
+    @EqualsAndHashCode.Include
     private UUID id;
     private String name;
     private String displayName;

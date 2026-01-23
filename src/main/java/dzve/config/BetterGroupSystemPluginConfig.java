@@ -23,6 +23,7 @@ public class BetterGroupSystemPluginConfig {
                     .append(new KeyedCodec<>("MaxNameLength", INTEGER), (cfg, val, info) -> cfg.maxNameLength = val, (cfg, info) -> cfg.maxNameLength).add()
                     .append(new KeyedCodec<>("MinTagLength", INTEGER), (cfg, val, info) -> cfg.minTagLength = val, (cfg, info) -> cfg.minTagLength).add()
                     .append(new KeyedCodec<>("MaxTagLength", INTEGER), (cfg, val, info) -> cfg.maxTagLength = val, (cfg, info) -> cfg.maxTagLength).add()
+                    .append(new KeyedCodec<>("MaxDescriptionLength", INTEGER), (cfg, val, info) -> cfg.maxDescriptionLength = val, (cfg, info) -> cfg.maxDescriptionLength).add()
                     .append(new KeyedCodec<>("DisablePowerSystemDetails", BOOLEAN), (cfg, val, info) -> cfg.disablePowerSystemDetails = val, (cfg, info) -> cfg.disablePowerSystemDetails).add()
                     .append(new KeyedCodec<>("PlayerInitialPower", DOUBLE), (cfg, val, info) -> cfg.playerInitialPower = val, (cfg, info) -> cfg.playerInitialPower).add()
                     .append(new KeyedCodec<>("PlayerPowerMax", DOUBLE), (cfg, val, info) -> cfg.playerPowerMax = val, (cfg, info) -> cfg.playerPowerMax).add()
@@ -51,13 +52,14 @@ public class BetterGroupSystemPluginConfig {
 
     private String pluginMode = "FACTION";
     private String allowedWorlds = "*";
-    private String allCommandsPrefix = "/faction";
+    private String allCommandsPrefix = "faction";
     private boolean hidePlayers = true;
     private int maxSize = 10;
     private int minNameLength = 3;
     private int maxNameLength = 15;
     private int minTagLength = 2;
     private int maxTagLength = 5;
+    private int maxDescriptionLength = 255;
     private boolean disablePowerSystemDetails = true;
     private double playerInitialPower = 5;
     private double playerPowerMax = 100;
