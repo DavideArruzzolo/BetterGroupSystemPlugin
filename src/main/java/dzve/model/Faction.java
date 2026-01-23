@@ -32,9 +32,7 @@ public class Faction extends Group {
 
     public Faction(String name, String tag, String description, String color, UUID leaderId) {
         super(name, tag, description, color, leaderId);
-        // I campi di Faction sono già inizializzati dai @Builder.Default o dal costruttore vuoto di Group
-
-        // Logica specifica post-inizializzazione
+        
         if (leaderId != null) {
             playerPower.put(leaderId, BetterGroupSystemPluginConfig.getInstance().getPlayerInitialPower());
             recalculateTotalPower();

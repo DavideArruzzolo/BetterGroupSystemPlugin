@@ -10,8 +10,8 @@ import java.util.*;
 @Data
 @SuperBuilder
 @AllArgsConstructor
-@NoArgsConstructor // Necessario per Jackson/Gson a volte, e per il Builder
-@EqualsAndHashCode(onlyExplicitlyIncluded = true) // Importante: usiamo solo l'ID per l'uguaglianza
+@NoArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Group {
 
     @EqualsAndHashCode.Include
@@ -48,9 +48,8 @@ public class Group {
     @Builder.Default
     private Map<UUID, DiplomacyStatus> diplomaticRelations = new HashMap<>();
 
-    // Costruttore semplificato per comodità (chiama il builder o setta i campi base)
     public Group(String name, String tag, String description, String color, UUID leaderId) {
-        this(); // Chiama il costruttore vuoto che inizializza i campi con i valori di default
+        this();
         this.name = name;
         this.tag = tag;
         this.description = description;

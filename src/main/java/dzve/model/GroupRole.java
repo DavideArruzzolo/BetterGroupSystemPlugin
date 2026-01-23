@@ -8,8 +8,8 @@ import java.util.UUID;
 @Data
 @Builder
 @AllArgsConstructor
-@NoArgsConstructor // Necessario per Jackson/Gson a volte, e per il Builder
-@EqualsAndHashCode(onlyExplicitlyIncluded = true) // Importante: usiamo solo l'ID per l'uguaglianza
+@NoArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class GroupRole {
     private UUID id;
     private String name;
