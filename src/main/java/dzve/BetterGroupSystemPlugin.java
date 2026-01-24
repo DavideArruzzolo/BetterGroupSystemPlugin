@@ -29,9 +29,8 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
     protected void setup() {
         LOGGER.atInfo().log("Setting up plugin " + this.getName());
         LOGGER.atInfo().log("Plugin mode: " + config.get().getPluginMode());
-        groupService = GroupService.getInstance();
-        loadConfig();
-        this.getCommandRegistry().registerCommand(new BaseGroupCommand());
+        groupService = GroupService.getInstance(config.get());
+        this.getCommandRegistry().registerCommand(new BaseGroupCommand(config.get()));
     }
 
     @Override
@@ -53,7 +52,6 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
         try {
             config.load();
             LOGGER.atInfo().log("Configuration load successfully");
-            saveConfig();
         } catch (Exception e) {
             LOGGER.atSevere().log("Failed to load configuration: " + e.getMessage());
         }

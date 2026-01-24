@@ -1,7 +1,8 @@
 package dzve.model;
 
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
-import dzve.config.BetterGroupSystemPluginConfig;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
@@ -13,14 +14,18 @@ import java.util.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type", visible = true)
+@JsonSubTypes({
+        @JsonSubTypes.Type(value = Guild.class, name = "GUILD"),
+        @JsonSubTypes.Type(value = Faction.class, name = "FACTION")
+})
 public class Group {
 
     @EqualsAndHashCode.Include
     @Builder.Default
     private UUID id = UUID.randomUUID();
 
-    @Builder.Default
-    private GroupType type = GroupType.valueOf(BetterGroupSystemPluginConfig.getInstance().getPluginMode());
+    private GroupType type;
 
     private String name;
     private String tag;
@@ -49,13 +54,14 @@ public class Group {
     @Builder.Default
     private Map<UUID, DiplomacyStatus> diplomaticRelations = new HashMap<>();
 
-    public Group(String name, String tag, String description, String color, PlayerRef player) {
+    public Group(String name, String tag, String description, String color, PlayerRef player, GroupType type) {
         this();
         this.name = name;
         this.tag = tag;
         this.description = description;
         this.color = color;
         this.leaderId = player.getUuid();
+        this.type = type;
 
         addMember(player, roles.stream().findFirst().orElseThrow().getId());
     }

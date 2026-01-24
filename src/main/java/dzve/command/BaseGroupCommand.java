@@ -10,7 +10,11 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dzve.command.diplomacy.DiplomacyCommand;
+import dzve.command.diplomacy.ListDiplomacyCommand;
+import dzve.command.diplomacy.ListInvitationsCommand;
 import dzve.command.economy.DepositCommand;
+import dzve.command.economy.GetBalanceCommand;
+import dzve.command.economy.GetGroupBalanceCommand;
 import dzve.command.economy.WithdrawCommand;
 import dzve.command.management.*;
 import dzve.command.member.*;
@@ -25,14 +29,13 @@ import dzve.utils.ChatFormatter;
 import javax.annotation.Nonnull;
 
 public class BaseGroupCommand extends AbstractPlayerCommand {
-    private final BetterGroupSystemPluginConfig betterGroupSystemPluginConfig = BetterGroupSystemPluginConfig.getInstance();
 
-    public BaseGroupCommand() {
-        super(BetterGroupSystemPluginConfig.getInstance().getAllCommandsPrefix(), "Main command for group system");
+    public BaseGroupCommand(BetterGroupSystemPluginConfig betterGroupSystemPluginConfig) {
+        super(betterGroupSystemPluginConfig.getAllCommandsPrefix(), "Main command for group system");
         setPermissionGroup(GameMode.Adventure);
 
         // --- I. Management ---
-        GroupService groupService = GroupService.getInstance();
+        GroupService groupService = GroupService.getInstance(betterGroupSystemPluginConfig);
         addSubCommand(new CreateGroupCommand(groupService));
         addSubCommand(new UpdateGroupCommand(groupService));
         addSubCommand(new DeleteGroupCommand(groupService));
@@ -61,8 +64,14 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
         // --- V. Economy & Misc ---
         addSubCommand(new DepositCommand(groupService));
         addSubCommand(new WithdrawCommand(groupService));
+        addSubCommand(new GetBalanceCommand(groupService));
+        addSubCommand(new GetGroupBalanceCommand(groupService));
         addSubCommand(new GroupInfoCommand(groupService));
+
+        // --- VI. Diplomacy ---
         addSubCommand(new DiplomacyCommand(groupService));
+        addSubCommand(new ListDiplomacyCommand(groupService));
+        addSubCommand(new ListInvitationsCommand(groupService));
     }
 
     @Override
@@ -74,6 +83,9 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
         playerRef.sendMessage(message);
 
         // Qui potresti iterare sui subcommands per generare una help list dinamica
-        getSubCommands().forEach((name, cmd) -> playerRef.sendMessage(ChatFormatter.of(" - " + name).toMessage()));
+        getSubCommands().forEach((name, cmd) -> {
+            playerRef.sendMessage(ChatFormatter.of(" - " + name).toMessage());
+            System.out.println(name);
+        });
     }
 }

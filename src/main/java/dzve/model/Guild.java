@@ -27,12 +27,16 @@ public class Guild extends Group {
     private Map<UUID, Double> moneyContributions = new HashMap<>();
 
     public Guild(String name, String tag, String description, String color, PlayerRef player) {
-        super(name, tag, description, color, player);
+        super(name, tag, description, color, player, GroupType.GUILD);
+        this.moneyContributions = new HashMap<>();
     }
 
     @Override
     public void addMember(PlayerRef player, UUID roleId) {
         super.addMember(player, roleId);
+        if (moneyContributions == null) {
+            moneyContributions = new HashMap<>();
+        }
         moneyContributions.put(player.getUuid(), 0.0);
     }
 

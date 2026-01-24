@@ -1,7 +1,18 @@
 package dzve.service.group;
 
+import com.hypixel.hytale.builtin.teleport.components.TeleportHistory;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.math.vector.Vector3d;
+import com.hypixel.hytale.math.vector.Vector3f;
+import com.hypixel.hytale.server.core.command.system.arguments.types.Coord;
+import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation;
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
+import com.hypixel.hytale.server.core.modules.entity.teleport.Teleport;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.model.*;
 import dzve.service.JsonStorage;
@@ -12,6 +23,7 @@ import java.io.File;
 import java.text.Normalizer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -35,7 +47,7 @@ public class GroupService {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     private static final GroupService instance = new GroupService();
     private static final NotificationService notificationService = NotificationService.getInstance();
-    private static final BetterGroupSystemPluginConfig config = BetterGroupSystemPluginConfig.getInstance();
+    private static BetterGroupSystemPluginConfig config = null;
 
     private final JsonStorage<GroupData> storage;
     private final Map<UUID, Group> groups = new ConcurrentHashMap<>();
@@ -54,7 +66,8 @@ public class GroupService {
         loadGroups();
     }
 
-    public static synchronized GroupService getInstance() {
+    public static synchronized GroupService getInstance(BetterGroupSystemPluginConfig betterGroupSystemPluginConfig) {
+        config = betterGroupSystemPluginConfig;
         return instance;
     }
 
@@ -117,6 +130,7 @@ public class GroupService {
         }
 
         Group group;
+        System.out.println(config.getPluginMode());
         if ("GUILD".equalsIgnoreCase(config.getPluginMode())) {
             group = new Guild(safeName, safeTag, desc, color, player);
         } else {
@@ -288,6 +302,7 @@ public class GroupService {
 
         group.addHome(new GroupHome(name, sender.getWorldUuid(), sender.getTransform().getPosition().getX(), sender.getTransform().getPosition().getY(), sender.getTransform().getPosition().getZ(), sender.getTransform().getRotation().getYaw(), sender.getTransform().getRotation().getPitch()));
         saveGroups();
+        notify(sender.getUuid(), "Home set successfully.", false);
     }
 
     /* --- III. Role Commands --- */
@@ -411,7 +426,7 @@ public class GroupService {
         notify(sender.getUuid(), "Land claimed!", false);
     }
 
-    public void teleportHome(PlayerRef sender, String name) {
+    public void teleportHome(PlayerRef sender, String name, Store<EntityStore> store, Ref<EntityStore> ref, World world) {
         Group group = getGroupOrNotify(sender);
         if (group == null || !checkPerm(group, sender, Permission.CAN_TELEPORT_HOME)) return;
 
@@ -419,8 +434,38 @@ public class GroupService {
         GroupHome home = group.getHome(target);
 
         if (home != null) {
-            // sender.teleport(...) implementation required here
-            notify(sender.getUuid(), "Teleporting to " + target + "...", false);
+            TransformComponent transformComponent = store.getComponent(ref, TransformComponent.getComponentType());
+            HeadRotation headRotationComponent = store.getComponent(ref, HeadRotation.getComponentType());
+
+            if (transformComponent == null || headRotationComponent == null) {
+                notify(sender.getUuid(), "Teleport failed.");
+                return;
+            }
+
+            Vector3d previousPos = transformComponent.getPosition().clone();
+            Vector3f previousHeadRotation = headRotationComponent.getRotation().clone();
+            Vector3f previousBodyRotation = transformComponent.getRotation().clone();
+
+            Coord relX = Coord.parse(String.valueOf(home.getX()));
+            Coord relY = Coord.parse(String.valueOf(home.getY()));
+            Coord relZ = Coord.parse(String.valueOf(home.getZ()));
+
+            double x = relX.resolveXZ(previousPos.getX());
+            double z = relZ.resolveXZ(previousPos.getZ());
+            double y = relY.resolveYAtWorldCoords(previousPos.getY(), world, x, z);
+
+            notify(sender.getUuid(), "Teleporting to " + target + " in 5 seconds...", false);
+
+            Teleport teleport = Teleport.createForPlayer(
+                    new Vector3d(x, y, z),
+                    new Vector3f(previousBodyRotation.getPitch(), home.getYaw(), previousBodyRotation.getRoll())
+            ).setHeadRotation(new Vector3f(home.getPitch(), home.getYaw(), 0));
+
+            store.addComponent(ref, Teleport.getComponentType(), teleport);
+            store.ensureAndGetComponent(ref, TeleportHistory.getComponentType())
+                    .append(world, previousPos, previousHeadRotation,
+                            String.format("Teleport to (%s, %s, %s)", x, y, z));
+
         } else {
             notify(sender.getUuid(), "Home not found.");
         }
@@ -645,6 +690,17 @@ public class GroupService {
         notify(sender.getUuid(), "Bank Balance: " + group.getBankBalance(), false);
     }
 
+    public void getGroupBalance(PlayerRef sender, String groupName) {
+        Group group = groups.values().stream()
+                .filter(g -> g.getName().equalsIgnoreCase(groupName))
+                .findFirst()
+                .orElse(null);
+
+        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_BANK)) return;
+
+        notify(sender.getUuid(), "Bank Balance for " + group.getName() + ": " + group.getBankBalance(), false);
+    }
+
     // --- Helpers (Optimization) ---
 
     @Nullable
@@ -718,7 +774,7 @@ public class GroupService {
         return getMemberRole(g, actor).getPriority() > getMemberRole(g, target).getPriority();
     }
 
-    private void modifyRoles(Group g, java.util.function.Consumer<Set<GroupRole>> modifier) {
+    private void modifyRoles(Group g, Consumer<Set<GroupRole>> modifier) {
         Set<GroupRole> mutable = new HashSet<>(g.getRoles());
         modifier.accept(mutable);
         g.setRoles(mutable);

@@ -32,23 +32,25 @@ public class Faction extends Group {
     private boolean raidable = false;
 
     public Faction(String name, String tag, String description, String color, PlayerRef player) {
-        super(name, tag, description, color, player);
-
-        playerPower.put(player.getUuid(), BetterGroupSystemPluginConfig.getInstance().getPlayerInitialPower());
-        recalculateTotalPower();
+        super(name, tag, description, color, player, GroupType.FACTION);
     }
 
     @Override
     public void addMember(PlayerRef player, UUID roleId) {
         super.addMember(player, roleId);
+        if (playerPower == null) {
+            playerPower = new HashMap<>();
+        }
         playerPower.put(player.getUuid(), BetterGroupSystemPluginConfig.getInstance().getPlayerInitialPower());
         recalculateTotalPower();
     }
 
     @Override
     public boolean removeMember(UUID playerId) {
-        playerPower.remove(playerId);
-        recalculateTotalPower();
+        if (playerPower != null) {
+            playerPower.remove(playerId);
+            recalculateTotalPower();
+        }
         return super.removeMember(playerId);
     }
 
@@ -73,9 +75,13 @@ public class Faction extends Group {
     }
 
     private void recalculateTotalPower() {
-        this.totalPower = playerPower.values().stream()
-                .mapToDouble(Double::doubleValue)
-                .sum();
+        if (playerPower == null) {
+            this.totalPower = 0.0;
+        } else {
+            this.totalPower = playerPower.values().stream()
+                    .mapToDouble(Double::doubleValue)
+                    .sum();
+        }
         updateRaidableStatus();
     }
 

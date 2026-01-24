@@ -1,9 +1,9 @@
-package dzve.command.territory;
+package dzve.command.economy;
 
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
-import com.hypixel.hytale.server.core.command.system.arguments.system.OptionalArg;
+import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
@@ -13,18 +13,18 @@ import dzve.service.group.GroupService;
 
 import javax.annotation.Nonnull;
 
-public class HomeCommand extends AbstractPlayerCommand {
+public class GetGroupBalanceCommand extends AbstractPlayerCommand {
     private final GroupService groupService;
     @Nonnull
-    private final OptionalArg<String> name = withOptionalArg("name", "Home name (default if empty)", ArgTypes.STRING);
+    private final RequiredArg<String> groupName = withRequiredArg("groupName", "Group Name", ArgTypes.STRING);
 
-    public HomeCommand(GroupService groupService) {
-        super("home", "Teleport to a group home");
+    public GetGroupBalanceCommand(GroupService groupService) {
+        super("getgroupbalance", "Shows the balance of a specific group's bank.");
         this.groupService = groupService;
     }
 
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
-        groupService.teleportHome(player, name.get(ctx), store, ref, world);
+        groupService.getGroupBalance(player, groupName.get(ctx));
     }
 }
