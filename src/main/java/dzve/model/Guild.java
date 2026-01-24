@@ -27,8 +27,13 @@ public class Guild extends Group {
     private Map<UUID, Double> moneyContributions = new HashMap<>();
 
     public Guild(String name, String tag, String description, String color, PlayerRef player) {
-        super(name, tag, description, color, player, GroupType.GUILD);
+        super(name, tag, description, color, player);
         this.moneyContributions = new HashMap<>();
+    }
+
+    @Override
+    public GroupType getType() {
+        return GroupType.GUILD;
     }
 
     @Override

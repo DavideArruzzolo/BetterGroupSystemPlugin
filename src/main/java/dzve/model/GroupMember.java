@@ -17,6 +17,7 @@ public class GroupMember {
     private LocalDateTime joinDate;
     private LocalDateTime lastActive;
     private UUID defaultHome;
+    private double bankBalance;
 
 
     public GroupMember(UUID playerId, String playerName, UUID roleId) {

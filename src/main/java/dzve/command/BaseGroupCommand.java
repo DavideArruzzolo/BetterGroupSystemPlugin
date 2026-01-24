@@ -14,13 +14,13 @@ import dzve.command.diplomacy.ListDiplomacyCommand;
 import dzve.command.diplomacy.ListInvitationsCommand;
 import dzve.command.economy.DepositCommand;
 import dzve.command.economy.GetBalanceCommand;
-import dzve.command.economy.GetGroupBalanceCommand;
 import dzve.command.economy.WithdrawCommand;
 import dzve.command.management.*;
 import dzve.command.member.*;
 import dzve.command.role.CreateRoleCommand;
 import dzve.command.role.DeleteRoleCommand;
 import dzve.command.role.SetRoleCommand;
+import dzve.command.role.UpdateRoleCommand;
 import dzve.command.territory.*;
 import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.service.group.GroupService;
@@ -52,6 +52,7 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
         addSubCommand(new CreateRoleCommand(groupService));
         addSubCommand(new SetRoleCommand(groupService));
         addSubCommand(new DeleteRoleCommand(groupService));
+        addSubCommand(new UpdateRoleCommand(groupService));
         addSubCommand(new ListRolesCommand(groupService));
 
         // --- IV. Territory ---
@@ -60,12 +61,12 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
         addSubCommand(new SetHomeCommand(groupService));
         addSubCommand(new HomeCommand(groupService));
         addSubCommand(new DeleteHomeCommand(groupService));
+        addSubCommand(new SetDefaultHomeCommand(groupService));
 
         // --- V. Economy & Misc ---
         addSubCommand(new DepositCommand(groupService));
         addSubCommand(new WithdrawCommand(groupService));
         addSubCommand(new GetBalanceCommand(groupService));
-        addSubCommand(new GetGroupBalanceCommand(groupService));
         addSubCommand(new GroupInfoCommand(groupService));
 
         // --- VI. Diplomacy ---

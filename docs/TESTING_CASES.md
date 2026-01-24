@@ -51,6 +51,7 @@ richiesti.
 | `/create_role <nome>` | Creare un nuovo ruolo nel proprio gruppo. |
 | `/list_roles` | Visualizzare la lista dei ruoli del proprio gruppo. |
 | `/delete_role <ruolo>` | Cancellare un ruolo esistente nel proprio gruppo. |
+| `/update_role <ruolo>` | Aggiorna un ruolo esistente nel proprio gruppo. |
 
 **2+ Giocatori (Online):**
 | Comando | Azione da Testare |
@@ -67,6 +68,7 @@ richiesti.
 | `/sethome` | Impostare la home del gruppo nella posizione attuale. |
 | `/home` | Teletrasportarsi alla home del gruppo. |
 | `/delhome` | Cancellare la home del gruppo. |
+| `/setDefaultHome` | Imposta la default home del player. |
 
 ### 1.5. Gestione Economia
 

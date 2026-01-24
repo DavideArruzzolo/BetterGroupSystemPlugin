@@ -1,4 +1,4 @@
-package dzve.command.economy;
+package dzve.command.territory;
 
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -13,18 +13,18 @@ import dzve.service.group.GroupService;
 
 import javax.annotation.Nonnull;
 
-public class GetBalanceCommand extends AbstractPlayerCommand {
+public class SetDefaultHomeCommand extends AbstractPlayerCommand {
     private final GroupService groupService;
     @Nonnull
-    private final OptionalArg<String> type = withOptionalArg("type", "player or group", ArgTypes.STRING);
+    private final OptionalArg<String> homeName = withOptionalArg("home", "Home name", ArgTypes.STRING);
 
-    public GetBalanceCommand(GroupService groupService) {
-        super("balance", "Shows the balance of a player or a group's bank.");
+    public SetDefaultHomeCommand(GroupService groupService) {
+        super("setdefault_home", "Set a default home to teleport to");
         this.groupService = groupService;
     }
 
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
-        groupService.getBalance(player, type.get(ctx));
+        groupService.setDefaultHome(player, homeName.get(ctx));
     }
 }

@@ -1,4 +1,4 @@
-package dzve.command.economy;
+package dzve.command.role;
 
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -13,26 +13,29 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dzve.service.group.GroupService;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
+import java.util.Collections;
 
-public class DepositCommand extends AbstractPlayerCommand {
+public class UpdateRoleCommand extends AbstractPlayerCommand {
     private final GroupService groupService;
     @Nonnull
-    private final RequiredArg<Double> amount = withRequiredArg("amount", "Quantity", ArgTypes.DOUBLE);
+    private final RequiredArg<String> name = withRequiredArg("name", "Role name", ArgTypes.STRING);
     @Nonnull
-    private final OptionalArg<String> type = withOptionalArg("type", "player or group", ArgTypes.STRING);
+    private final OptionalArg<String> addGrants = withOptionalArg("add_grants", "Permissions to add (space separated)", ArgTypes.STRING);
+    @Nonnull
+    private final OptionalArg<String> removeGrants = withOptionalArg("remove_grants", "Permissions to remove (space separated)", ArgTypes.STRING);
 
-    public DepositCommand(GroupService groupService) {
-        super("deposit", "Deposit money into your personal or group bank");
+    public UpdateRoleCommand(GroupService groupService) {
+        super("update_role", "Update a role's permissions");
         this.groupService = groupService;
     }
 
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
-        String target = type.get(ctx);
-        if (target != null && target.equalsIgnoreCase("group")) {
-            groupService.depositToGroup(player, amount.get(ctx));
-        } else {
-            groupService.deposit(player, amount.get(ctx));
-        }
+        String addGrantsStr = addGrants.get(ctx);
+        String removeGrantsStr = removeGrants.get(ctx);
+        groupService.updateRole(player, name.get(ctx),
+                addGrantsStr != null ? Arrays.asList(addGrantsStr.split(" ")) : Collections.emptyList(),
+                removeGrantsStr != null ? Arrays.asList(removeGrantsStr.split(" ")) : Collections.emptyList());
     }
 }

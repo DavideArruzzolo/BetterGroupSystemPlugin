@@ -17,11 +17,14 @@ import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.model.*;
 import dzve.service.JsonStorage;
 import dzve.service.NotificationService;
+import dzve.utils.ChatFormatter;
 
 import javax.annotation.Nullable;
+import java.awt.*;
 import java.io.File;
 import java.text.Normalizer;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
@@ -48,6 +51,7 @@ public class GroupService {
     // Cache unicità
     private final Set<String> namesGroups = ConcurrentHashMap.newKeySet();
     private final Set<String> tagsGroups = ConcurrentHashMap.newKeySet();
+
     private GroupService() {
         this.storage = new JsonStorage<>(new File(DATA_FOLDER, FILE_NAME), GroupData.class);
         loadGroups();
@@ -88,45 +92,44 @@ public class GroupService {
         if (group == null || !hasPerm(group, sender, Permission.CAN_INVITE)) return;
 
         if (playerGroupMap.containsKey(target.getUuid())) {
-            notify(sender.getUuid(), "Player already in a group.");
+            notify(sender, "Player already in a group.");
             return;
         }
-        if (group.getMemberCount() >= (group.getType().equals(FACTION) ? config.getMaxSize() : config.getMaxSize() + config.getSlotQuantityGainForLevel() * ((Guild) group).getLevel())) {
-            notify(sender.getUuid(), "Group full.");
+        if (group.getMembers().size() >= (group.getType().equals(FACTION) ? config.getMaxSize() : config.getMaxSize() + config.getSlotQuantityGainForLevel() * ((Guild) group).getLevel())) {
+            notify(sender, "Group full.");
             return;
         }
 
         invitations.computeIfAbsent(target.getUuid(), k -> ConcurrentHashMap.newKeySet()).add(group.getId());
-        notify(sender.getUuid(), "Invited " + target.getUsername(), false);
+        notify(sender, "Invited " + target.getUsername(), false);
     }
 
     /* --- I. Management Commands --- */
 
     public void createGroup(PlayerRef player, String name, String tag, @Nullable String color, @Nullable String desc) {
-        UUID pid = player.getUuid();
-        if (playerGroupMap.containsKey(pid)) {
-            notify(pid, "You are already in a group.");
+        if (playerGroupMap.containsKey(player.getUuid())) {
+            notify(player, "You are already in a group.");
             return;
         }
 
         String safeName = normalize(name);
         String safeTag = normalize(tag);
 
-        if (!validateIdentifier(pid, safeName, config.getMinNameLength(), config.getMaxNameLength(), namesGroups, "Name"))
+        if (!validateIdentifier(player, safeName, config.getMinNameLength(), config.getMaxNameLength(), namesGroups, "Name"))
             return;
-        if (!validateIdentifier(pid, safeTag, config.getMinTagLength(), config.getMaxTagLength(), tagsGroups, "Tag"))
+        if (!validateIdentifier(player, safeTag, config.getMinTagLength(), config.getMaxTagLength(), tagsGroups, "Tag"))
             return;
         if (color != null && !HEX_PATTERN.matcher(color).matches()) {
-            notify(pid, "Invalid color code.");
+            notify(player, "Invalid color code.");
             return;
         }
         if (desc != null && desc.length() > config.getMaxDescriptionLength()) {
-            notify(pid, "Description too long.");
+            notify(player, "Description too long.");
             return;
         }
 
         Group group;
-        System.out.println(config.getPluginMode());
+        desc = desc != null ? desc.substring(0, desc.length() - 1) : null;
         if ("GUILD".equalsIgnoreCase(config.getPluginMode())) {
             group = new Guild(safeName, safeTag, desc, color, player);
         } else {
@@ -136,7 +139,7 @@ public class GroupService {
         groups.put(group.getId(), group);
         cacheGroupData(group);
         saveGroups();
-        notify(pid, "Group created successfully!", false);
+        notify(player, "Group created successfully!", false);
     }
 
     public void deleteGroup(PlayerRef player) {
@@ -149,56 +152,61 @@ public class GroupService {
 
         groups.remove(group.getId());
         saveGroups();
-        notify(player.getUuid(), "Group deleted.", false);
+        notify(player, "Group deleted.", false);
     }
 
     public void leaveGroup(PlayerRef player) {
         Group group = getGroupOrNotify(player);
         if (group == null) return;
-        if (group.isLeader(player.getUuid()) && group.getMemberCount() > 1) {
-            notify(player.getUuid(), "Leader cannot leave. Transfer ownership first.");
+        if (group.isLeader(player.getUuid()) && group.getMembers().size() > 1) {
+            notify(player, "Leader cannot leave. Transfer ownership first.");
             return;
         }
 
-        if (group.getMemberCount() <= 1) {
+        if (group.getMembers().size() <= 1) {
             deleteGroup(player);
         } else {
             group.removeMember(player.getUuid());
             playerGroupMap.remove(player.getUuid());
             saveGroups();
-            notify(player.getUuid(), "You left the group.", false);
+            notify(player, "You left the group.", false);
         }
     }
 
-    public void updateGroup(PlayerRef player, String type, String value) { //TODO sbagliato tutti i parametri posso essere insieme
+    public void updateGroup(PlayerRef player, String type, String value) {
         Group group = getGroupOrNotify(player);
         if (group == null || !hasPerm(group, player, Permission.CAN_UPDATE_GROUP)) return;
 
-        UUID pid = player.getUuid();
         switch (type.toLowerCase()) {
             case "name" -> {
                 String sName = normalize(value);
-                if (validateIdentifier(pid, sName, config.getMinNameLength(), config.getMaxNameLength(), namesGroups, "Name")) {
+                if (validateIdentifier(player, sName, config.getMinNameLength(), config.getMaxNameLength(), namesGroups, "Name")) {
                     namesGroups.remove(group.getName().toLowerCase());
                     group.setName(sName);
                     namesGroups.add(sName.toLowerCase());
+                    notify(player, "The name of the group updated successfully", false);
                 }
             }
             case "tag" -> {
                 String sTag = normalize(value);
-                if (validateIdentifier(pid, sTag, config.getMinTagLength(), config.getMaxTagLength(), tagsGroups, "Tag")) {
+                if (validateIdentifier(player, sTag, config.getMinTagLength(), config.getMaxTagLength(), tagsGroups, "Tag")) {
                     tagsGroups.remove(group.getTag().toLowerCase());
                     group.setTag(sTag);
                     tagsGroups.add(sTag.toLowerCase());
+                    notify(player, "The tag of the group updated successfully", false);
                 }
             }
             case "color" -> {
-                if (HEX_PATTERN.matcher(value).matches()) group.setColor(value);
-                else notify(pid, "Invalid hex color.");
+                if (HEX_PATTERN.matcher(value).matches()) {
+                    group.setColor(value);
+                    notify(player, "The color of the group updated successfully", false);
+                } else notify(player, "Invalid hex color.");
             }
             case "desc" -> {
-                if (value.length() <= config.getMaxDescriptionLength()) group.setDescription(value);
-                else notify(pid, "Desc too long.");
+                if (value.length() <= config.getMaxDescriptionLength()) {
+                    group.setDescription(value);
+                    notify(player, "The description of the group updated successfully", false);
+                } else notify(player, "Desc too long.");
             }
         }
         saveGroups();
@@ -210,7 +218,7 @@ public class GroupService {
         Group group = getGroupOrNotify(sender);
         if (group == null || !isLeader(group, sender)) return;
         if (!group.isMember(targetId)) {
-            notify(sender.getUuid(), "Target not in group.");
+            notify(sender, "Target not in group.");
             return;
         }
 
@@ -221,28 +229,28 @@ public class GroupService {
         group.changeMemberRole(targetId, leaderRole.getId());
         group.changeMemberRole(sender.getUuid(), memberRole.getId());
         saveGroups();
-        notify(sender.getUuid(), "Leadership transferred.", false);
+        notify(sender, "Leadership transferred.", false);
     }
 
     public void acceptInvitation(PlayerRef player, String groupName) {
         if (playerGroupMap.containsKey(player.getUuid())) {
-            notify(player.getUuid(), "Already in a group.");
+            notify(player, "Already in a group.");
             return;
         }
 
         Group group = groups.values().stream().filter(g -> g.getName().equalsIgnoreCase(groupName)).findFirst().orElse(null);
         if (group == null) {
-            notify(player.getUuid(), "Group not found.");
+            notify(player, "Group not found.");
             return;
         }
 
         Set<UUID> invites = invitations.get(player.getUuid());
         if (invites == null || !invites.contains(group.getId())) {
-            notify(player.getUuid(), "No invitation from this group.");
+            notify(player, "No invitation from this group.");
             return;
         }
-        if (group.getMemberCount() >= config.getMaxSize()) {
-            notify(player.getUuid(), "Group is full.");
+        if (group.getMembers().size() >= config.getMaxSize()) {
+            notify(player, "Group is full.");
             return;
         }
 
@@ -251,54 +259,57 @@ public class GroupService {
         playerGroupMap.put(player.getUuid(), group.getId());
         invites.remove(group.getId());
         saveGroups();
-        notify(player.getUuid(), "Joined " + group.getName(), false);
+        notify(player, "Joined " + group.getName(), false);
     }
 
     public void kickMember(PlayerRef sender, UUID targetId) {
         Group group = getGroupOrNotify(sender);
         if (group == null || !hasPerm(group, sender, Permission.CAN_KICK)) return;
         if (!group.isMember(targetId)) {
-            notify(sender.getUuid(), "Target not in group.");
+            notify(sender, "Target not in group.");
             return;
         }
         if (sender.getUuid().equals(targetId)) {
-            notify(sender.getUuid(), "Cannot kick self.");
+            notify(sender, "Cannot kick self.");
             return;
         }
 
         if (!canModify(group, sender.getUuid(), targetId)) {
-            notify(sender.getUuid(), "Target rank too high.");
+            notify(sender, "Target rank too high.");
             return;
         }
 
         group.removeMember(targetId);
         playerGroupMap.remove(targetId);
         saveGroups();
-        notify(sender.getUuid(), "Member kicked.", false);
+        notify(sender, "Member kicked.", false);
     }
 
     public void setHome(PlayerRef sender, String name) {
         Group group = getGroupOrNotify(sender);
         if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
-        if (group.getHomeCount() >= config.getMaxHome()) {
-            notify(sender.getUuid(), "Max homes reached.");
-            return;
-        }
+
         if (group.getHome(name) != null) {
-            notify(sender.getUuid(), "Home exists.");
+            if (!hasPerm(group, sender, Permission.CAN_MANAGE_HOME)) {
+                notify(sender, "You don't have permission to overwrite an existing home.");
+                return;
+            }
+            group.removeHome(name);
+        } else if (group.getHomeCount() >= config.getMaxHome()) {
+            notify(sender, "Max homes reached.");
             return;
         }
 
         int cx = (int) sender.getTransform().getPosition().getX() >> 4;
         int cz = (int) sender.getTransform().getPosition().getZ() >> 4;
         if (!group.isChunkClaimed(cx, cz, sender.getWorldUuid())) {
-            notify(sender.getUuid(), "Must be in claimed land.");
+            notify(sender, "Must be in claimed land.");
             return;
         }
 
         group.addHome(new GroupHome(name, sender.getWorldUuid(), sender.getTransform().getPosition().getX(), sender.getTransform().getPosition().getY(), sender.getTransform().getPosition().getZ(), sender.getTransform().getRotation().getYaw(), sender.getTransform().getRotation().getPitch()));
         saveGroups();
-        notify(sender.getUuid(), "Home set successfully.", false);
+        notify(sender, "Home set successfully.", false);
     }
 
     /* --- III. Role Commands --- */
@@ -307,22 +318,22 @@ public class GroupService {
         Group group = getGroupOrNotify(sender);
         if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_ROLE)) return;
         if (group.getRoles().size() >= 10) {
-            notify(sender.getUuid(), "Max roles reached.");
+            notify(sender, "Max roles reached.");
             return;
         }
         if (getRoleByName(group, name) != null) {
-            notify(sender.getUuid(), "Role exists.");
+            notify(sender, "Role exists.");
             return;
         }
 
         Set<Permission> perms = parsePerms(grants);
         if (perms == null) {
-            notify(sender.getUuid(), "Invalid permissions.");
+            notify(sender, "Invalid permissions.");
             return;
         }
 
         modifyRoles(group, roles -> roles.add(new GroupRole(name, name, 10, false, perms)));
-        notify(sender.getUuid(), "Role created.", false);
+        notify(sender, "Role created.", false);
     }
 
     public void deleteRole(PlayerRef sender, String name) {
@@ -331,57 +342,65 @@ public class GroupService {
 
         GroupRole role = getRoleByName(group, name);
         if (role == null || role.isDefault()) {
-            notify(sender.getUuid(), "Invalid role.");
+            notify(sender, "Invalid role.");
             return;
         }
         if (group.getMembers().stream().anyMatch(m -> m.getRoleId().equals(role.getId()))) {
-            notify(sender.getUuid(), "Role is in use.");
+            notify(sender, "Role is in use.");
             return;
         }
 
         modifyRoles(group, roles -> roles.remove(role));
-        notify(sender.getUuid(), "Role deleted.", false);
+        notify(sender, "Role deleted.", false);
     }
 
-    public void modifyRolePerms(PlayerRef sender, String name, List<String> grants) {
+    public void updateRole(PlayerRef sender, String name, List<String> addGrants, List<String> removeGrants) {
         Group group = getGroupOrNotify(sender);
         if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_ROLE)) return;
 
         GroupRole role = getRoleByName(group, name);
         if (role == null || role.isDefault()) {
-            notify(sender.getUuid(), "Cannot edit this role.");
+            notify(sender, "Cannot edit this role.");
             return;
         }
 
-        Set<Permission> perms = parsePerms(grants);
-        if (perms != null) {
-            role.setPermissions(perms);
-            saveGroups();
-            notify(sender.getUuid(), "Role permissions updated.", false);
+        Set<Permission> perms = new HashSet<>(role.getPermissions());
+        Set<Permission> addPerms = parsePerms(addGrants);
+        Set<Permission> removePerms = parsePerms(removeGrants);
+
+        if (addPerms != null) {
+            perms.addAll(addPerms);
         }
+        if (removePerms != null) {
+            perms.removeAll(removePerms);
+        }
+
+        role.setPermissions(perms);
+        saveGroups();
+        notify(sender, "Role permissions updated.", false);
     }
 
     public void setRole(PlayerRef sender, UUID targetId, String roleName) {
         Group group = getGroupOrNotify(sender);
         if (group == null || !hasPerm(group, sender, Permission.CAN_CHANGE_ROLE)) return;
         if (!group.isMember(targetId)) {
-            notify(sender.getUuid(), "Target not in group.");
+            notify(sender, "Target not in group.");
             return;
         }
         if (!canModify(group, sender.getUuid(), targetId)) {
-            notify(sender.getUuid(), "Hierarchy prevents this.");
+            notify(sender, "Hierarchy prevents this.");
             return;
         }
 
         GroupRole role = getRoleByName(group, roleName);
         if (role == null) {
-            notify(sender.getUuid(), "Role not found.");
+            notify(sender, "Role not found.");
             return;
         }
 
         GroupRole senderRole = getMemberRole(group, sender.getUuid());
         if (!group.isLeader(sender.getUuid()) && role.getPriority() >= senderRole.getPriority()) {
-            notify(sender.getUuid(), "Cannot promote to rank >= yours.");
+            notify(sender, "Cannot promote to rank >= yours.");
             return;
         }
 
@@ -395,42 +414,49 @@ public class GroupService {
         ChunkInfo chunkInfo = getChunkInfo(sender);
         if (chunkInfo == null) return;
 
-        // Global check (is already claimed by ANY group?)
         boolean taken = groups.values().stream().anyMatch(g -> g.isChunkClaimed(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
         if (taken) {
-            notify(sender.getUuid(), "Chunk already claimed.");
+            notify(sender, "Chunk already claimed.");
             return;
         }
 
-        // Faction specific checks
         if (chunkInfo.group instanceof Faction f) {
-            if (f.getClaims().size() >= f.getMaxClaims(config.getClaimRatio())) {
-                notify(sender.getUuid(), "Not enough power.");
+            int maxClaims = f.getMaxClaims(config.getClaimRatio());
+            if (f.getClaims().size() >= maxClaims) {
+                notify(sender, "Not enough power. Claims: " + f.getClaims().size() + "/" + maxClaims);
                 return;
             }
-        } else if (chunkInfo.group.getClaims().size() >= config.getMaxClaimsPerFaction()) { // Generic limit
-            notify(sender.getUuid(), "Claim limit reached.");
+        } else if (chunkInfo.group.getClaims().size() >= config.getMaxClaimsPerFaction()) {
+            notify(sender, "Claim limit reached.");
             return;
         }
 
         chunkInfo.group.addClaim(new GroupClaimedChunk(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
         saveGroups();
-        notify(sender.getUuid(), "Land claimed!", false);
+        notify(sender, "Land claimed!", false);
     }
 
     public void teleportHome(PlayerRef sender, String name, Store<EntityStore> store, Ref<EntityStore> ref, World world) {
         Group group = getGroupOrNotify(sender);
         if (group == null || !hasPerm(group, sender, Permission.CAN_TELEPORT_HOME)) return;
 
-        String target = (name == null) ? (group.getHomeCount() == 1 ? group.getHomes().iterator().next().getName() : "default") : name;
-        GroupHome home = group.getHome(target);
+        GroupMember member = group.getMember(sender.getUuid());
+        GroupHome home = null;
+
+        if (name != null) {
+            home = group.getHome(name);
+        } else if (member.getDefaultHome() != null) {
+            home = group.getHomeById(member.getDefaultHome());
+        } else if (group.getHomeCount() == 1) {
+            home = group.getHomes().iterator().next();
+        }
 
         if (home != null) {
             TransformComponent transformComponent = store.getComponent(ref, TransformComponent.getComponentType());
             HeadRotation headRotationComponent = store.getComponent(ref, HeadRotation.getComponentType());
 
             if (transformComponent == null || headRotationComponent == null) {
-                notify(sender.getUuid(), "Teleport failed.");
+                notify(sender, "Teleport failed.");
                 return;
             }
 
@@ -446,7 +472,7 @@ public class GroupService {
             double z = relZ.resolveXZ(previousPos.getZ());
             double y = relY.resolveYAtWorldCoords(previousPos.getY(), world, x, z);
 
-            notify(sender.getUuid(), "Teleporting to " + target + " in 5 seconds...", false);
+            notify(sender, "Teleporting to " + home.getName() + "...", false);
 
             Teleport teleport = Teleport.createForPlayer(
                     new Vector3d(x, y, z),
@@ -459,7 +485,7 @@ public class GroupService {
                             String.format("Teleport to (%s, %s, %s)", x, y, z));
 
         } else {
-            notify(sender.getUuid(), "Home not found.");
+            notify(sender, "Home not found.");
         }
     }
 
@@ -468,50 +494,69 @@ public class GroupService {
         if (chunkInfo == null) return;
 
         if (!chunkInfo.group.isChunkClaimed(chunkInfo.cx, chunkInfo.cz, chunkInfo.world)) {
-            notify(sender.getUuid(), "This land is not claimed by your group.");
+            notify(sender, "This land is not claimed by your group.");
             return;
         }
 
         chunkInfo.group.removeClaim(chunkInfo.cx, chunkInfo.cz, chunkInfo.world);
         saveGroups();
-        notify(sender.getUuid(), "Land unclaimed.", false);
+        notify(sender, "Land unclaimed.", false);
     }
 
     public void withdraw(PlayerRef sender, double amount) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_BANK)) return;
-        if (amount <= 0 || !group.withdraw(amount)) {
-            notify(sender.getUuid(), "Invalid amount or insufficient funds.");
+        if (group == null) return;
+
+        if (amount <= 0 || !group.withdraw(amount, sender.getUuid())) {
+            notify(sender, "Invalid amount or insufficient funds.");
             return;
         }
 
         // EconomyService.add(sender, amount);
         saveGroups();
-        notify(sender.getUuid(), "Withdrawn " + amount, false);
+        notify(sender, "Withdrawn " + amount, false);
+    }
+
+    public void withdrawFromGroup(PlayerRef sender, double amount) {
+        Group group = getGroupOrNotify(sender);
+        if (group == null) return;
+
+        if (amount <= 0 || !group.withdrawFromGroup(amount, sender.getUuid())) {
+            notify(sender, "Invalid amount, insufficient funds, or no permission.");
+            return;
+        }
+
+        // EconomyService.add(sender, amount);
+        saveGroups();
+        notify(sender, "Withdrawn " + amount + " from group bank", false);
     }
 
     public void upgradeGuild(PlayerRef sender) {
         Group group = getGroupOrNotify(sender);
         if (!(group instanceof Guild guild)) {
-            notify(sender.getUuid(), "Not a guild.");
+            notify(sender, "Not a guild.");
             return;
         }
         if (!hasPerm(group, sender, Permission.CAN_UPGRADE_GUILD)) return;
 
         if (!guild.canUpgrade()) {
-            notify(sender.getUuid(), "Cannot upgrade (Max level or Insufficient funds).");
+            notify(sender, "Cannot upgrade (Max level or Insufficient funds).");
             return;
         }
 
-        guild.withdraw(guild.calculateCostToNextLevel());
-        guild.setLevel(guild.getLevel() + 1);
-        saveGroups();
-        notify(sender.getUuid(), "Guild Level Up: " + guild.getLevel(), false);
+        if (guild.withdrawFromGroup(guild.calculateCostToNextLevel(), sender.getUuid())) {
+            guild.setLevel(guild.getLevel() + 1);
+            saveGroups();
+            notify(sender, "Guild Level Up: " + guild.getLevel(), false);
+        } else {
+            notify(sender, "Insufficient funds in group bank to upgrade.");
+        }
     }
 
     // --- Info & Lists ---
 
     public void getGroupInfo(PlayerRef sender, @Nullable String targetGroupName) {
+
         Group group;
         if (targetGroupName == null) {
             group = getGroupOrNotify(sender);
@@ -520,48 +565,119 @@ public class GroupService {
                     .filter(g -> g.getName().equalsIgnoreCase(targetGroupName))
                     .findFirst()
                     .orElse(null);
+
             if (group == null) {
-                notify(sender.getUuid(), "Group not found.");
+                notify(sender, "Group not found.");
                 return;
             }
         }
 
-        if (group == null) return; // Caso sender senza gruppo e senza target
+        if (group == null) return;
 
-        // Costruisci il messaggio info (Placeholder per la formattazione reale)
-        String info = String.format("Group: %s [%s] | Leader: %s | Balance: %.2f | Members: %d/%d",
-                group.getName(), group.getTag(), group.getLeaderId(), group.getBankBalance(),
-                group.getMemberCount(), config.getMaxSize());
+        String leaderName = Optional.ofNullable(group.getMember(group.getLeaderId()))
+                .map(GroupMember::getPlayerName)
+                .orElse("N/A");
 
-        notify(sender.getUuid(), info, false);
+        Color groupColor = group.getColor() != null ? Color.decode(group.getColor()) : Color.white;
+
+        ChatFormatter.StyledText msg =
+                ChatFormatter.of("#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#\n")
+                        .append("Name: ").append(group.getName() + "\n").withBold()
+                        .append("Tag: ").append(group.getTag() + "\n").withBold()
+                        .append("Color: ").append(group.getColor() != null ? group.getColor() : "No color set" + "\n").withBold().withColor(groupColor)
+                        .append("Description: ").append(group.getDescription() != null ? group.getDescription() : "No description set" + "\n").withBold()
+                        .append("\n")
+                        .append("Leader: ").append(leaderName + "\n").withBold()
+                        .append("Members: ").append(group.getMembers().size() + " / " + (group.getType().equals(FACTION) ? config.getMaxSize() : config.getMaxSize() + config.getSlotQuantityGainForLevel() * ((Guild) group).getLevel()) + "\n").withBold()
+                        .append("Claims: ").append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid())) ? group.getClaims().size() + " / " + config.getMaxClaimsPerFaction() + "\n" : "Not allowed to see this info\n").withBold()
+                        .append("Homes: ").append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid())) ? group.getHomeCount() + "\n" : "Not allowed to see this info\n").withBold()
+                        .append("Bank: ").append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid())) ? String.format("%.2f", group.getBankBalance()) + "\n" : "Not allowed to see this info\n").withBold()
+                        .append("Created: ").append(group.getCreatedAt().toLocalDate().toString() + "\n").withBold()
+                        .append("\n");
+        if (group instanceof Faction faction) {
+            msg = msg
+                    .append("Total Power: ").append(String.format("%.2f", faction.getTotalPower()) + "\n").withBold()
+                    .append("Kills: ").append(faction.getKills() + "\n").withBold()
+                    .append("Deaths: ").append(faction.getDeaths() + "\n").withBold()
+                    .append("K/D Ratio: ").append(String.format("%.2f", faction.getKillDeathRatio()) + "\n").withBold()
+                    .append("Can be raidable: ");
+
+            if (group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid()))) {
+                msg = msg.append(faction.isRaidable() ? "YES\n" : "NO\n").withBold().withColor(faction.isRaidable() ? Color.RED : Color.GREEN);
+            } else {
+                msg = msg.append("Not allowed to see this info\n").withBold();
+            }
+        }
+        if (group instanceof Guild guild) {
+            msg = msg.append("Level: ").append(String.valueOf(guild.getLevel()))
+                    .append("MoneyToNextLevel: ").append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid())) ? guild.getMoneyToNextLevel() + "\n" : "Not allowed to see this info\n").withBold();
+        }
+        msg = msg.append("#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#");
+
+        sender.sendMessage(msg.toMessage());
     }
+
 
     public void listInvitations(PlayerRef sender) {
         Set<UUID> invites = invitations.get(sender.getUuid());
         if (invites == null || invites.isEmpty()) {
-            notify(sender.getUuid(), "No pending invitations.", false);
+            notify(sender, "No pending invitations.", false);
             return;
         }
 
-        String inviteNames = invites.stream()
+        ChatFormatter.StyledText msg = ChatFormatter.of("You have invitations from the following groups:\n");
+
+        invites.stream()
                 .map(groups::get)
                 .filter(Objects::nonNull)
-                .map(Group::getName)
-                .collect(Collectors.joining(", "));
+                .forEach(group -> {
+                    Color groupColor = group.getColor() != null ? Color.decode(group.getColor()) : Color.white;
+                    String leaderName = Optional.ofNullable(group.getMember(group.getLeaderId()))
+                            .map(GroupMember::getPlayerName)
+                            .orElse("N/A");
 
-        notify(sender.getUuid(), "Invited by: " + inviteNames, false);
+                    msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n")
+                            .append("Name: ").append(group.getName() + "\n").withBold()
+                            .append("Tag: ").append(group.getTag() + "\n").withBold()
+                            .append("Color: ").append(group.getColor() != null ? group.getColor() : "No color set" + "\n").withBold().withColor(groupColor)
+                            .append("Description: ").append(group.getDescription() != null ? group.getDescription() : "No description set" + "\n").withBold()
+                            .append("\n")
+                            .append("Leader: ").append(leaderName + "\n").withBold()
+                            .append("Members: ").append(group.getMembers().size() + " / " + (group.getType().equals(FACTION) ? config.getMaxSize() : config.getMaxSize() + config.getSlotQuantityGainForLevel() * ((Guild) group).getLevel()) + "\n").withBold();
+
+                    if (group instanceof Faction faction) {
+                        msg.append("Total Power: ").append(String.format("%.2f", faction.getTotalPower()) + "\n").withBold();
+                    }
+                    if (group instanceof Guild guild) {
+                        msg.append("Level: ").append(guild.getLevel() + "\n").withBold();
+                    }
+                    msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n");
+                });
+
+        sender.sendMessage(msg.toMessage());
     }
 
     public void listRoles(PlayerRef sender) {
         Group group = getGroupOrNotify(sender);
         if (group == null) return;
 
-        String roleList = group.getRoles().stream()
-                .sorted(Comparator.comparingInt(GroupRole::getPriority))
-                .map(r -> r.getName() + " (P:" + r.getPriority() + ")")
-                .collect(Collectors.joining(", "));
+        ChatFormatter.StyledText msg = ChatFormatter.of("Roles for " + group.getName() + ":\n");
 
-        notify(sender.getUuid(), "Roles: " + roleList, false);
+        group.getRoles().stream()
+                .sorted(Comparator.comparingInt(GroupRole::getPriority).reversed())
+                .forEach(role -> {
+                    String perms = role.getPermissions().stream()
+                            .map(Permission::name)
+                            .collect(Collectors.joining(", "));
+
+                    msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n")
+                            .append("Role: ").append(role.getName() + "\n").withBold()
+                            .append("Priority: ").append(role.getPriority() + "\n")
+                            .append("Permissions: ").append(perms.isEmpty() ? "None" : perms + "\n");
+                });
+
+        msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-");
+        sender.sendMessage(msg.toMessage());
     }
 
     // --- Territory Extension ---
@@ -571,34 +687,31 @@ public class GroupService {
         if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
 
         if (!group.removeHome(homeName)) {
-            notify(sender.getUuid(), "Home not found.");
+            notify(sender, "Home not found.");
             return;
         }
         saveGroups();
-        notify(sender.getUuid(), "Home " + homeName + " deleted.", false);
+        notify(sender, "Home " + homeName + " deleted.", false);
     }
 
-    public void setDefaultHome(PlayerRef sender, String homeName) {
+    public void setDefaultHome(PlayerRef sender, @Nullable String homeName) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
+        if (group == null) return;
 
-        GroupHome home = group.getHome(homeName);
-        if (home == null) {
-            notify(sender.getUuid(), "Home not found.");
-            return;
+        GroupMember member = group.getMember(sender.getUuid());
+        if (homeName == null) {
+            member.setDefaultHome(null);
+            notify(sender, "Default home removed.", false);
+        } else {
+            GroupHome home = group.getHome(homeName);
+            if (home == null) {
+                notify(sender, "Home not found.");
+                return;
+            }
+            member.setDefaultHome(home.getId());
+            notify(sender, "Home " + homeName + " is now your default.", false);
         }
-
-        // Rimuove la vecchia default e ricrea la nuova con nome "default" o usa un flag nel modello GroupHome
-        // Per semplicità qui assumiamo che "default" sia un nome riservato, quindi rinominiamo.
-        // Implementazione suggerita: Aggiungere un campo 'isDefault' in GroupHome o gestire l'alias.
-        // Qui simulo scambiando il nome per aderire alla logica 'teleportHome' che cerca "default".
-
-        GroupHome oldDefault = group.getHome("default");
-        if (oldDefault != null) oldDefault.setName("old_default_" + System.currentTimeMillis());
-
-        home.setName("default");
         saveGroups();
-        notify(sender.getUuid(), "Home " + homeName + " is now default.", false);
     }
 
     public void setDiplomacy(PlayerRef sender, String targetGroupName, DiplomacyStatus status) {
@@ -610,23 +723,23 @@ public class GroupService {
                 .findFirst().orElse(null);
 
         if (target == null) {
-            notify(sender.getUuid(), "Target group not found.");
+            notify(sender, "Target group not found.");
             return;
         }
         if (target.getId().equals(group.getId())) {
-            notify(sender.getUuid(), "Cannot change relations with yourself.");
+            notify(sender, "Cannot change relations with yourself.");
             return;
         }
 
         if (status == DiplomacyStatus.ALLY) {
             // Qui servirebbe un sistema di "Richiesta Alleanza" simile agli inviti.
             // Per ora lo setto diretto come da tua richiesta semplificata, ma idealmente è bidirezionale.
-            notify(sender.getUuid(), "Alliance request sent (Not implemented fully).", false);
+            notify(sender, "Alliance request sent (Not implemented fully).", false);
         } else {
             // Neutral o Enemy si possono settare unilateralmente
             group.setDiplomacyStatus(target.getId(), status);
             saveGroups();
-            notify(sender.getUuid(), "Diplomacy with " + target.getName() + " set to " + status, false);
+            notify(sender, "Diplomacy with " + target.getName() + " set to " + status, false);
         }
     }
 
@@ -636,19 +749,29 @@ public class GroupService {
         Group group = getGroupOrNotify(sender);
         if (group == null) return;
 
-        String relations = group.getDiplomaticRelations().entrySet().stream()
-                .map(e -> {
-                    Group g = groups.get(e.getKey());
-                    return (g != null ? g.getName() : "Unknown") + ": " + e.getValue();
-                })
-                .collect(Collectors.joining(", "));
+        ChatFormatter.StyledText msg = ChatFormatter.of("Diplomatic Relations for " + group.getName() + ":\n");
 
-        notify(sender.getUuid(), "Relations: " + (relations.isEmpty() ? "None" : relations), false);
+        if (group.getDiplomaticRelations().isEmpty()) {
+            msg.append("No diplomatic relations set.");
+        } else {
+            group.getDiplomaticRelations().forEach((groupId, status) -> {
+                Group relatedGroup = groups.get(groupId);
+                if (relatedGroup != null) {
+                    Color color = switch (status) {
+                        case ALLY -> Color.GREEN;
+                        case NEUTRAL -> Color.GRAY;
+                        case ENEMY -> Color.RED;
+                    };
+                    msg.append("- " + relatedGroup.getName() + ": ").append(status.name()).withColor(color).append("\n");
+                }
+            });
+        }
+        sender.sendMessage(msg.toMessage());
     }
 
     public void deposit(PlayerRef sender, double amount) {
         if (amount <= 0) {
-            notify(sender.getUuid(), "Amount must be positive.");
+            notify(sender, "Amount must be positive.");
             return;
         }
 
@@ -657,33 +780,48 @@ public class GroupService {
 
         // TODO: Integrare check: if (EconomyService.remove(sender, amount)) ...
 
-        group.deposit(amount);
+        group.deposit(amount, sender.getUuid());
         if (group instanceof Guild guild) {
             guild.getMoneyContributions().merge(sender.getUuid(), amount, Double::sum);
         }
 
         saveGroups();
-        notify(sender.getUuid(), "Deposited " + amount, false);
+        notify(sender, "Deposited " + amount, false);
+    }
+
+    public void depositToGroup(PlayerRef sender, double amount) {
+        if (amount <= 0) {
+            notify(sender, "Amount must be positive.");
+            return;
+        }
+
+        Group group = getGroupOrNotify(sender);
+        if (group == null) return;
+
+        // TODO: Integrare check: if (EconomyService.remove(sender, amount)) ...
+
+        group.depositToGroup(amount);
+        if (group instanceof Guild guild) {
+            guild.getMoneyContributions().merge(sender.getUuid(), amount, Double::sum);
+        }
+
+        saveGroups();
+        notify(sender, "Deposited " + amount + " to group bank", false);
     }
 
     // --- Economy Extension ---
 
-    public void getBalance(PlayerRef sender) {
+    public void getBalance(PlayerRef sender, @Nullable String type) {
         Group group = getGroupOrNotify(sender);
         if (group == null) return;
-        // Permesso opzionale: hasPerm(group, sender, Permission.CAN_VIEW_BANK)
-        notify(sender.getUuid(), "Bank Balance: " + group.getBankBalance(), false);
-    }
 
-    public void getGroupBalance(PlayerRef sender, String groupName) {
-        Group group = groups.values().stream()
-                .filter(g -> g.getName().equalsIgnoreCase(groupName))
-                .findFirst()
-                .orElse(null);
-
-        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_BANK)) return;
-
-        notify(sender.getUuid(), "Bank Balance for " + group.getName() + ": " + group.getBankBalance(), false);
+        if (type == null || type.equalsIgnoreCase("player")) {
+            notify(sender, "Player balance: " + group.getBalance(sender.getUuid()), false);
+        } else if (type.equalsIgnoreCase("group")) {
+            notify(sender, "Group Bank Balance: " + group.getBankBalance(), false);
+        } else {
+            notify(sender, "Invalid type. Use 'player' or 'group'.");
+        }
     }
 
     @Nullable
@@ -705,14 +843,14 @@ public class GroupService {
         if (r != null && r.hasPermission(perm)) {
             return true;
         }
-        notify(p.getUuid(), "No Permission.");
+        notify(p, "No Permission.");
         return false;
     }
 
     @Nullable
     private Group getGroupOrNotify(PlayerRef p) {
         UUID gid = playerGroupMap.get(p.getUuid());
-        if (gid == null) notify(p.getUuid(), "You are not in a group.");
+        if (gid == null) notify(p, "You are not in a group.");
         return gid != null ? groups.get(gid) : null;
     }
 
@@ -720,29 +858,29 @@ public class GroupService {
         if (g.isLeader(p.getUuid())) {
             return true;
         }
-        notify(p.getUuid(), "Leader only.");
+        notify(p, "Leader only.");
         return false;
     }
 
-    private void notify(UUID uuid, String msg) {
-        notify(uuid, msg, true);
+    private void notify(PlayerRef player, String msg) {
+        notify(player, msg, true);
     }
 
-    private void notify(UUID uuid, String msg, boolean isError) {
-        notificationService.sendNotification(uuid, msg, isError ? Danger : Success); // Simplification
+    private void notify(PlayerRef player, String msg, boolean isError) {
+        notificationService.sendNotification(player.getUuid(), msg, isError ? Danger : Success); // Simplification
     }
 
-    private boolean validateIdentifier(UUID pid, String val, int min, int max, Set<String> cache, String field) {
+    private boolean validateIdentifier(PlayerRef player, String val, int min, int max, Set<String> cache, String field) {
         if (val.length() < min || val.length() > max) {
-            notify(pid, field + " length invalid.");
+            notify(player, field + " length invalid.");
             return false;
         }
         if (!NAME_PATTERN.matcher(val).matches()) {
-            notify(pid, field + " contains invalid chars.");
+            notify(player, field + " contains invalid chars.");
             return false;
         }
         if (cache.contains(val.toLowerCase())) {
-            notify(pid, field + " already taken.");
+            notify(player, field + " already taken.");
             return false;
         }
         return true;
@@ -780,7 +918,10 @@ public class GroupService {
     private Set<Permission> parsePerms(List<String> list) {
         if (list == null) return null;
         try {
-            return list.stream().map(s -> Permission.valueOf(s.toUpperCase().replace(".", "_"))).collect(Collectors.toSet());
+            return list.stream()
+                    .map(s -> s.replace(",", "").trim())
+                    .map(s -> Permission.valueOf(s.toUpperCase().replace(".", "_")))
+                    .collect(Collectors.toSet());
         } catch (IllegalArgumentException e) {
             return null;
         }

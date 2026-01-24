@@ -31,9 +31,6 @@ public final class ChatFormatter {
             entry("white", new Color(255, 255, 255))
     );
 
-    private ChatFormatter() {
-    }
-
     public static StyledText of(String text) {
         return new StyledText(text);
     }

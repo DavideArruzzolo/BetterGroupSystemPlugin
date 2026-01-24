@@ -1,5 +1,6 @@
 package dzve.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import dzve.config.BetterGroupSystemPluginConfig;
 import lombok.*;
@@ -14,6 +15,7 @@ import java.util.UUID;
 @SuperBuilder
 @AllArgsConstructor
 @NoArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Faction extends Group {
 
     @Builder.Default
@@ -32,7 +34,12 @@ public class Faction extends Group {
     private boolean raidable = false;
 
     public Faction(String name, String tag, String description, String color, PlayerRef player) {
-        super(name, tag, description, color, player, GroupType.FACTION);
+        super(name, tag, description, color, player);
+    }
+
+    @Override
+    public GroupType getType() {
+        return GroupType.FACTION;
     }
 
     @Override
@@ -47,11 +54,14 @@ public class Faction extends Group {
 
     @Override
     public boolean removeMember(UUID playerId) {
-        if (playerPower != null) {
-            playerPower.remove(playerId);
-            recalculateTotalPower();
+        boolean removed = super.removeMember(playerId);
+        if (removed) {
+            if (playerPower != null) {
+                playerPower.remove(playerId);
+                recalculateTotalPower();
+            }
         }
-        return super.removeMember(playerId);
+        return removed;
     }
 
     public double getPlayerPower(UUID playerId) {
@@ -86,7 +96,6 @@ public class Faction extends Group {
     }
 
     private void updateRaidableStatus() {
-        boolean wasRaidable = this.raidable;
         this.raidable = totalPower < 0;
     }
 
@@ -103,7 +112,10 @@ public class Faction extends Group {
     }
 
     public double getKillDeathRatio() {
-        if (deaths == 0) return kills > 0 ? Double.POSITIVE_INFINITY : 0.0;
-        return (double) kills / deaths;
+        if (deaths == 0) {
+            return kills > 0 ? Double.POSITIVE_INFINITY : 0.0;
+        } else {
+            return (double) kills / deaths;
+        }
     }
 }

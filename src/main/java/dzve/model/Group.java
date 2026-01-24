@@ -19,13 +19,11 @@ import java.util.*;
         @JsonSubTypes.Type(value = Guild.class, name = "GUILD"),
         @JsonSubTypes.Type(value = Faction.class, name = "FACTION")
 })
-public class Group {
+public abstract class Group {
 
     @EqualsAndHashCode.Include
     @Builder.Default
     private UUID id = UUID.randomUUID();
-
-    private GroupType type;
 
     private String name;
     private String tag;
@@ -54,17 +52,18 @@ public class Group {
     @Builder.Default
     private Map<UUID, DiplomacyStatus> diplomaticRelations = new HashMap<>();
 
-    public Group(String name, String tag, String description, String color, PlayerRef player, GroupType type) {
+    public Group(String name, String tag, String description, String color, PlayerRef player) {
         this();
         this.name = name;
         this.tag = tag;
         this.description = description;
         this.color = color;
         this.leaderId = player.getUuid();
-        this.type = type;
 
         addMember(player, roles.stream().findFirst().orElseThrow().getId());
     }
+
+    public abstract GroupType getType();
 
     public void addMember(PlayerRef player, UUID roleId) {
         GroupMember member = new GroupMember(player.getUuid(), player.getUsername(), roleId);
@@ -72,7 +71,12 @@ public class Group {
     }
 
     public boolean removeMember(UUID playerId) {
-        return members.removeIf(member -> member.getPlayerId().equals(playerId));
+        GroupMember member = getMember(playerId);
+        if (member != null) {
+            this.bankBalance += member.getBankBalance();
+            return members.remove(member);
+        }
+        return false;
     }
 
     public GroupMember getMember(UUID playerId) {
@@ -96,22 +100,56 @@ public class Group {
         member.setRoleId(newRoleId);
     }
 
-    public void deposit(double amount) {
+    public void deposit(double amount, UUID playerId) {
+        if (amount > 0) {
+            GroupMember member = getMember(playerId);
+            if (member != null) {
+                member.setBankBalance(member.getBankBalance() + amount);
+            }
+        }
+    }
+
+    public boolean withdraw(double amount, UUID playerId) {
+        if (amount > 0) {
+            GroupMember member = getMember(playerId);
+            if (member != null && member.getBankBalance() >= amount) {
+                member.setBankBalance(member.getBankBalance() - amount);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public double getBalance(UUID playerId) {
+        GroupMember member = getMember(playerId);
+        return (member != null) ? member.getBankBalance() : 0.0;
+    }
+
+    public void depositToGroup(double amount) {
         if (amount > 0) {
             this.bankBalance += amount;
         }
     }
 
-    public boolean withdraw(double amount) {
+    public boolean withdrawFromGroup(double amount, UUID playerId) {
         if (amount > 0 && bankBalance >= amount) {
-            this.bankBalance -= amount;
-            return true;
+            GroupMember member = getMember(playerId);
+            if (member != null) {
+                GroupRole role = getRole(member.getRoleId());
+                if (role != null && role.hasPermission(Permission.CAN_MANAGE_BANK)) {
+                    this.bankBalance -= amount;
+                    return true;
+                }
+            }
         }
         return false;
     }
 
-    public int getMemberCount() {
-        return members.size();
+    public GroupRole getRole(UUID roleId) {
+        return roles.stream()
+                .filter(role -> role.getId().equals(roleId))
+                .findFirst()
+                .orElse(null);
     }
 
     public int getHomeCount() {
@@ -126,14 +164,6 @@ public class Group {
         return diplomaticRelations.getOrDefault(group, DiplomacyStatus.NEUTRAL);
     }
 
-    public boolean isEnemy(UUID group) {
-        return getDiplomacyStatus(group) == DiplomacyStatus.ENEMY;
-    }
-
-    public boolean isAlly(UUID group) {
-        return getDiplomacyStatus(group) == DiplomacyStatus.ALLY;
-    }
-
     public void addHome(GroupHome home) {
         homes.add(home);
     }
@@ -145,6 +175,13 @@ public class Group {
     public GroupHome getHome(String homeName) {
         return homes.stream()
                 .filter(home -> home.getName().equals(homeName))
+                .findFirst()
+                .orElse(null);
+    }
+
+    public GroupHome getHomeById(UUID id) {
+        return homes.stream()
+                .filter(home -> home.getId().equals(id))
                 .findFirst()
                 .orElse(null);
     }
