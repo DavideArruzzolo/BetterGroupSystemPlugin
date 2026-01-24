@@ -154,7 +154,7 @@ public final class ChatFormatter {
                 return this;
             }
             List<Segment> newSegments = new ArrayList<>(segments.subList(0, segments.size() - 1));
-            Segment lastSegment = segments.get(segments.size() - 1);
+            Segment lastSegment = segments.getLast();
             newSegments.add(segmentChanger.apply(lastSegment));
             return new StyledText(newSegments);
         }

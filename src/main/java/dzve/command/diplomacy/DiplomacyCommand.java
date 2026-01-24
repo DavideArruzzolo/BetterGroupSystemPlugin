@@ -30,8 +30,8 @@ public class DiplomacyCommand extends AbstractPlayerCommand {
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
         try {
-            DiplomacyStatus diploStatus = DiplomacyStatus.valueOf(status.get(ctx).toUpperCase());
-            groupService.setDiplomacy(player, targetGroup.get(ctx), diploStatus);
+            DiplomacyStatus diplomacyStatus = DiplomacyStatus.valueOf(status.get(ctx).toUpperCase());
+            groupService.setDiplomacy(player, targetGroup.get(ctx), diplomacyStatus);
         } catch (IllegalArgumentException e) {
             player.sendMessage(Message.raw("Invalid status. Use: ALLY, NEUTRAL, ENEMY"));
         }

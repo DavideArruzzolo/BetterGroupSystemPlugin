@@ -150,7 +150,7 @@ These apply to most commands and should be checked first.
 ### `/group home [name]`
 
 1. **Group State**:
-    * If `[name]` is provided, check if that home exists.
+    * If `[name]` is provided, check that home exists.
     * If omitted, check if a default home is set.
 3. **State**: Check if the player is in combat, which should prevent teleporting.
 

@@ -71,7 +71,7 @@ tasks.register('updatePluginManifest') {
             throw new GradleException("Could not find manifest.json at ${manifestFile.path}!")
         }
         def manifestJson = new JsonSlurper().parseText(manifestFile.text)
-        def versionParts = manifestJson.Version.split('\\.')
+        def versionParts = new ArrayList<>(Arrays.asList(manifestJson.Version.toString().split('\\.')))
         versionParts[2] = (versionParts[2].toInteger() + 1).toString()
         manifestJson.Version = versionParts.join('.')
         version = manifestJson.Version

@@ -16,7 +16,7 @@ import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
 import javax.annotation.Nonnull;
 
 public class CreateGroupCommand extends AbstractPlayerCommand {
-    GroupService groupService;
+    final GroupService groupService;
 
     public CreateGroupCommand(GroupService groupService) {
         super("create", "Create a new group");

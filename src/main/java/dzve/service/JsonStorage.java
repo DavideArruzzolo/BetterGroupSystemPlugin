@@ -36,9 +36,13 @@ public class JsonStorage<T> {
         if (!file.exists()) {
             try {
                 if (file.getParentFile() != null) {
-                    file.getParentFile().mkdirs();
+                    if (!file.getParentFile().mkdirs()) {
+                        LOGGER.atWarning().log("Could not create parent directories for: " + file.getAbsolutePath());
+                    }
                 }
-                file.createNewFile();
+                if (!file.createNewFile()) {
+                    LOGGER.atWarning().log("Could not create file: " + file.getAbsolutePath());
+                }
             } catch (IOException e) {
                 LOGGER.atSevere().log("Failed to create file: " + file.getAbsolutePath(), e);
             }

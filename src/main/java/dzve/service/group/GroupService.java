@@ -89,7 +89,7 @@ public class GroupService {
 
     public void invitePlayer(PlayerRef sender, PlayerRef target) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_INVITE)) return;
+        if (group == null || !hasPerm(group, sender, Permission.CAN_INVITE)) return;
 
         if (playerGroupMap.containsKey(target.getUuid())) {
             notify(sender.getUuid(), "Player already in a group.");
@@ -145,7 +145,7 @@ public class GroupService {
 
     public void deleteGroup(PlayerRef player) {
         Group group = getGroupOrNotify(player);
-        if (group == null || !checkLeader(group, player)) return;
+        if (group == null || !isLeader(group, player)) return;
 
         namesGroups.remove(group.getName().toLowerCase());
         tagsGroups.remove(group.getTag().toLowerCase());
@@ -176,7 +176,7 @@ public class GroupService {
 
     public void updateGroup(PlayerRef player, String type, String value) { //TODO sbagliato tutti i parametri posso essere insieme
         Group group = getGroupOrNotify(player);
-        if (group == null || !checkPerm(group, player, Permission.CAN_UPDATE_GROUP)) return;
+        if (group == null || !hasPerm(group, player, Permission.CAN_UPDATE_GROUP)) return;
 
         UUID pid = player.getUuid();
         switch (type.toLowerCase()) {
@@ -212,7 +212,7 @@ public class GroupService {
 
     public void transferLeadership(PlayerRef sender, UUID targetId) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkLeader(group, sender)) return;
+        if (group == null || !isLeader(group, sender)) return;
         if (!group.isMember(targetId)) {
             notify(sender.getUuid(), "Target not in group.");
             return;
@@ -260,7 +260,7 @@ public class GroupService {
 
     public void kickMember(PlayerRef sender, UUID targetId) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_KICK)) return;
+        if (group == null || !hasPerm(group, sender, Permission.CAN_KICK)) return;
         if (!group.isMember(targetId)) {
             notify(sender.getUuid(), "Target not in group.");
             return;
@@ -283,7 +283,7 @@ public class GroupService {
 
     public void setHome(PlayerRef sender, String name) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
+        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
         if (group.getHomeCount() >= config.getMaxHome()) {
             notify(sender.getUuid(), "Max homes reached.");
             return;
@@ -309,7 +309,7 @@ public class GroupService {
 
     public void createRole(PlayerRef sender, String name, List<String> grants) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_ROLE)) return;
+        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_ROLE)) return;
         if (group.getRoles().size() >= 10) {
             notify(sender.getUuid(), "Max roles reached.");
             return;
@@ -331,7 +331,7 @@ public class GroupService {
 
     public void deleteRole(PlayerRef sender, String name) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_ROLE)) return;
+        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_ROLE)) return;
 
         GroupRole role = getRoleByName(group, name);
         if (role == null || role.isDefault()) {
@@ -349,7 +349,7 @@ public class GroupService {
 
     public void modifyRolePerms(PlayerRef sender, String name, List<String> grants) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_ROLE)) return;
+        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_ROLE)) return;
 
         GroupRole role = getRoleByName(group, name);
         if (role == null || role.isDefault()) {
@@ -367,7 +367,7 @@ public class GroupService {
 
     public void setRole(PlayerRef sender, UUID targetId, String roleName) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_CHANGE_ROLE)) return;
+        if (group == null || !hasPerm(group, sender, Permission.CAN_CHANGE_ROLE)) return;
         if (!group.isMember(targetId)) {
             notify(sender.getUuid(), "Target not in group.");
             return;
@@ -396,39 +396,35 @@ public class GroupService {
     /* --- IV. Territory & V. Economy --- */
 
     public void claimChunk(PlayerRef sender) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_CLAIM)) return;
-
-        int cx = (int) sender.getTransform().getPosition().getX() >> 4;
-        int cz = (int) sender.getTransform().getPosition().getZ() >> 4;
-        UUID world = sender.getWorldUuid();
+        ChunkInfo chunkInfo = getChunkInfo(sender);
+        if (chunkInfo == null) return;
 
         // Global check (is already claimed by ANY group?)
-        boolean taken = groups.values().stream().anyMatch(g -> g.isChunkClaimed(cx, cz, world));
+        boolean taken = groups.values().stream().anyMatch(g -> g.isChunkClaimed(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
         if (taken) {
             notify(sender.getUuid(), "Chunk already claimed.");
             return;
         }
 
         // Faction specific checks
-        if (group instanceof Faction f) {
+        if (chunkInfo.group instanceof Faction f) {
             if (f.getClaims().size() >= f.getMaxClaims(config.getClaimRatio())) {
                 notify(sender.getUuid(), "Not enough power.");
                 return;
             }
-        } else if (group.getClaims().size() >= config.getMaxClaimsPerFaction()) { // Generic limit
+        } else if (chunkInfo.group.getClaims().size() >= config.getMaxClaimsPerFaction()) { // Generic limit
             notify(sender.getUuid(), "Claim limit reached.");
             return;
         }
 
-        group.addClaim(new GroupClaimedChunk(cx, cz, world));
+        chunkInfo.group.addClaim(new GroupClaimedChunk(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
         saveGroups();
         notify(sender.getUuid(), "Land claimed!", false);
     }
 
     public void teleportHome(PlayerRef sender, String name, Store<EntityStore> store, Ref<EntityStore> ref, World world) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_TELEPORT_HOME)) return;
+        if (group == null || !hasPerm(group, sender, Permission.CAN_TELEPORT_HOME)) return;
 
         String target = (name == null) ? (group.getHomeCount() == 1 ? group.getHomes().iterator().next().getName() : "default") : name;
         GroupHome home = group.getHome(target);
@@ -472,26 +468,22 @@ public class GroupService {
     }
 
     public void unclaimChunk(PlayerRef sender) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_CLAIM)) return;
+        ChunkInfo chunkInfo = getChunkInfo(sender);
+        if (chunkInfo == null) return;
 
-        int cx = (int) sender.getTransform().getPosition().getX() >> 4;
-        int cz = (int) sender.getTransform().getPosition().getZ() >> 4;
-        UUID world = sender.getWorldUuid();
-
-        if (!group.isChunkClaimed(cx, cz, world)) {
+        if (!chunkInfo.group.isChunkClaimed(chunkInfo.cx, chunkInfo.cz, chunkInfo.world)) {
             notify(sender.getUuid(), "This land is not claimed by your group.");
             return;
         }
 
-        group.removeClaim(cx, cz, world);
+        chunkInfo.group.removeClaim(chunkInfo.cx, chunkInfo.cz, chunkInfo.world);
         saveGroups();
         notify(sender.getUuid(), "Land unclaimed.", false);
     }
 
     public void withdraw(PlayerRef sender, double amount) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_BANK)) return;
+        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_BANK)) return;
         if (amount <= 0 || !group.withdraw(amount)) {
             notify(sender.getUuid(), "Invalid amount or insufficient funds.");
             return;
@@ -508,7 +500,7 @@ public class GroupService {
             notify(sender.getUuid(), "Not a guild.");
             return;
         }
-        if (!checkPerm(group, sender, Permission.CAN_UPGRADE_GUILD)) return;
+        if (!hasPerm(group, sender, Permission.CAN_UPGRADE_GUILD)) return;
 
         if (!guild.canUpgrade()) {
             notify(sender.getUuid(), "Cannot upgrade (Max level or Insufficient funds).");
@@ -583,7 +575,7 @@ public class GroupService {
 
     public void deleteHome(PlayerRef sender, String homeName) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
+        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
 
         if (!group.removeHome(homeName)) {
             notify(sender.getUuid(), "Home not found.");
@@ -595,7 +587,7 @@ public class GroupService {
 
     public void setDefaultHome(PlayerRef sender, String homeName) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
+        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
 
         GroupHome home = group.getHome(homeName);
         if (home == null) {
@@ -620,7 +612,7 @@ public class GroupService {
 
     public void setDiplomacy(PlayerRef sender, String targetGroupName, DiplomacyStatus status) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_DIPLOMACY)) return;
+        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_DIPLOMACY)) return;
 
         Group target = groups.values().stream()
                 .filter(g -> g.getName().equalsIgnoreCase(targetGroupName))
@@ -686,7 +678,7 @@ public class GroupService {
     public void getBalance(PlayerRef sender) {
         Group group = getGroupOrNotify(sender);
         if (group == null) return;
-        // Permesso opzionale: checkPerm(group, sender, Permission.CAN_VIEW_BANK)
+        // Permesso opzionale: hasPerm(group, sender, Permission.CAN_VIEW_BANK)
         notify(sender.getUuid(), "Bank Balance: " + group.getBankBalance(), false);
     }
 
@@ -696,12 +688,33 @@ public class GroupService {
                 .findFirst()
                 .orElse(null);
 
-        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_BANK)) return;
+        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_BANK)) return;
 
         notify(sender.getUuid(), "Bank Balance for " + group.getName() + ": " + group.getBankBalance(), false);
     }
 
     // --- Helpers (Optimization) ---
+
+    @Nullable
+    private ChunkInfo getChunkInfo(PlayerRef sender) {
+        Group group = getGroupOrNotify(sender);
+        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_CLAIM)) return null;
+
+        int cx = (int) sender.getTransform().getPosition().getX() >> 4;
+        int cz = (int) sender.getTransform().getPosition().getZ() >> 4;
+        UUID world = sender.getWorldUuid();
+        return new ChunkInfo(group, cx, cz, world);
+    }
+
+    private boolean hasPerm(Group g, PlayerRef p, Permission perm) {
+        if (g.isLeader(p.getUuid())) return true;
+        GroupRole r = getMemberRole(g, p.getUuid());
+        if (r != null && r.hasPermission(perm)) {
+            return true;
+        }
+        notify(p.getUuid(), "No Permission.");
+        return false;
+    }
 
     @Nullable
     private Group getGroupOrNotify(PlayerRef p) {
@@ -710,22 +723,15 @@ public class GroupService {
         return gid != null ? groups.get(gid) : null;
     }
 
-    private boolean checkPerm(Group g, PlayerRef p, Permission perm) {
-        if (g.isLeader(p.getUuid())) return true;
-        GroupRole r = getMemberRole(g, p.getUuid());
-        if (r == null || !r.hasPermission(perm)) {
-            notify(p.getUuid(), "No Permission.");
-            return false;
+    private boolean isLeader(Group g, PlayerRef p) {
+        if (g.isLeader(p.getUuid())) {
+            return true;
         }
-        return true;
+        notify(p.getUuid(), "Leader only.");
+        return false;
     }
 
-    private boolean checkLeader(Group g, PlayerRef p) {
-        if (!g.isLeader(p.getUuid())) {
-            notify(p.getUuid(), "Leader only.");
-            return false;
-        }
-        return true;
+    private record ChunkInfo(Group group, int cx, int cz, UUID world) {
     }
 
     private void notify(UUID uuid, String msg) {

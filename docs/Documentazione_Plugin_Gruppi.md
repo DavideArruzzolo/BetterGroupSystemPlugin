@@ -324,7 +324,7 @@ Casi di test ordinati per area funzionale e complessità.
 | **Alta** | `/set_role`    | Membro senza permessi assegna ruolo a Owner.       |
 | Media    | `/delete_role` | Cancellare ruolo predefinito o assegnato a membri. |
 
-#### Gestione Territori e Economia
+#### Gestione Territori ed Economia
 
 | Priorità | Comando                | Scenario Negativo/Limite                 |
 |:---------|:-----------------------|:-----------------------------------------|
