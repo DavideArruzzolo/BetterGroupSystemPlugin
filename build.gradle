@@ -109,29 +109,3 @@ idea.project.settings.runConfigurations {
         workingDirectory = serverRunDir.absolutePath
     }
 }
-
-
-tasks.register('generateVSCodeLaunch') {
-    def vscodeDir = file("$projectDir/.vscode")
-    def launchFile = file("$vscodeDir/launch.json")
-    doLast {
-        if (!vscodeDir.exists()) {
-            vscodeDir.mkdirs()
-        }
-        def programParams = createServerRunArguments("\${workspaceFolder}")
-        def launchConfig = [
-                version       : "0.2.0",
-                configurations: [
-                        [
-                                type     : "java",
-                                name     : "HytaleServer",
-                                request  : "launch",
-                                mainClass: "com.hypixel.hytale.Main",
-                                args     : programParams,
-                                cwd      : "\${workspaceFolder}/run"
-                        ]
-                ]
-        ]
-        launchFile.text = JsonOutput.prettyPrint(JsonOutput.toJson(launchConfig))
-    }
-}
