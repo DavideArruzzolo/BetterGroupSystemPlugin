@@ -17,23 +17,19 @@ import javax.annotation.Nonnull;
 
 public class CreateGroupCommand extends AbstractPlayerCommand {
     final GroupService groupService;
+    @Nonnull
+    private final RequiredArg<String> name = withRequiredArg("name", "The name of the group", ArgTypes.STRING);
+    @Nonnull
+    private final RequiredArg<String> tag = withRequiredArg("tag", "The tag of the group", ArgTypes.STRING);
+    @Nonnull
+    private final OptionalArg<String> color = withOptionalArg("color", "The color of the group (hex format, e.g., #FF0000)", ArgTypes.STRING);
+    @Nonnull
+    private final OptionalArg<String> description = withOptionalArg("description", "The description of the group", ArgTypes.STRING);
 
     public CreateGroupCommand(GroupService groupService) {
         super("create", "Create a new group");
         this.groupService = groupService;
     }
-
-    @Nonnull
-    private final RequiredArg<String> name = withRequiredArg("name", "The name of the group", ArgTypes.STRING);
-
-    @Nonnull
-    private final RequiredArg<String> tag = withRequiredArg("tag", "The tag of the group", ArgTypes.STRING);
-
-    @Nonnull
-    private final OptionalArg<String> color = withOptionalArg("color", "The color of the group (hex format, e.g., #FF0000)", ArgTypes.STRING);
-
-    @Nonnull
-    private final OptionalArg<String> description = withOptionalArg("description", "The description of the group", ArgTypes.STRING);
 
     @Override
     protected void execute(@NonNullDecl CommandContext commandContext, @NonNullDecl Store<EntityStore> store, @NonNullDecl Ref<EntityStore> ref, @NonNullDecl PlayerRef playerRef, @NonNullDecl World world) {

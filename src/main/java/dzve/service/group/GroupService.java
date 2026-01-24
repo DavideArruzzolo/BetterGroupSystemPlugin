@@ -35,32 +35,19 @@ import static dzve.model.GroupType.FACTION;
 
 public class GroupService {
 
-    private void loadGroups() {
-        GroupData data = storage.load();
-        if (data != null && data.groups() != null) {
-            this.groups.putAll(data.groups());
-            groups.values().forEach(this::cacheGroupData);
-            LOGGER.atInfo().log("Loaded " + groups.size() + " groups.");
-        }
-    }
-
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     private static final GroupService instance = new GroupService();
     private static final NotificationService notificationService = NotificationService.getInstance();
+    private static final Pattern NAME_PATTERN = Pattern.compile("^[\\p{L}\\p{N}_]+$");
+    private static final Pattern HEX_PATTERN = Pattern.compile("^#[0-9a-fA-F]{6}$");
     private static BetterGroupSystemPluginConfig config = null;
-
     private final JsonStorage<GroupData> storage;
     private final Map<UUID, Group> groups = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> playerGroupMap = new ConcurrentHashMap<>(); // PlayerUUID -> GroupUUID
     private final Map<UUID, Set<UUID>> invitations = new ConcurrentHashMap<>(); // PlayerUUID -> Set<GroupUUID>
-
     // Cache unicità
     private final Set<String> namesGroups = ConcurrentHashMap.newKeySet();
     private final Set<String> tagsGroups = ConcurrentHashMap.newKeySet();
-
-    private static final Pattern NAME_PATTERN = Pattern.compile("^[\\p{L}\\p{N}_]+$");
-    private static final Pattern HEX_PATTERN = Pattern.compile("^#[0-9a-fA-F]{6}$");
-
     private GroupService() {
         this.storage = new JsonStorage<>(new File(DATA_FOLDER, FILE_NAME), GroupData.class);
         loadGroups();
@@ -69,6 +56,15 @@ public class GroupService {
     public static synchronized GroupService getInstance(BetterGroupSystemPluginConfig betterGroupSystemPluginConfig) {
         config = betterGroupSystemPluginConfig;
         return instance;
+    }
+
+    private void loadGroups() {
+        GroupData data = storage.load();
+        if (data != null && data.groups() != null) {
+            this.groups.putAll(data.groups());
+            groups.values().forEach(this::cacheGroupData);
+            LOGGER.atInfo().log("Loaded " + groups.size() + " groups.");
+        }
     }
 
     // --- Core Logic ---
@@ -570,9 +566,6 @@ public class GroupService {
 
     // --- Territory Extension ---
 
-    private record GroupData(Map<UUID, Group> groups) {
-    }
-
     public void deleteHome(PlayerRef sender, String homeName) {
         Group group = getGroupOrNotify(sender);
         if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
@@ -608,8 +601,6 @@ public class GroupService {
         notify(sender.getUuid(), "Home " + homeName + " is now default.", false);
     }
 
-    // --- Diplomacy ---
-
     public void setDiplomacy(PlayerRef sender, String targetGroupName, DiplomacyStatus status) {
         Group group = getGroupOrNotify(sender);
         if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_DIPLOMACY)) return;
@@ -639,6 +630,8 @@ public class GroupService {
         }
     }
 
+    // --- Diplomacy ---
+
     public void listDiplomacy(PlayerRef sender) {
         Group group = getGroupOrNotify(sender);
         if (group == null) return;
@@ -652,8 +645,6 @@ public class GroupService {
 
         notify(sender.getUuid(), "Relations: " + (relations.isEmpty() ? "None" : relations), false);
     }
-
-    // --- Economy Extension ---
 
     public void deposit(PlayerRef sender, double amount) {
         if (amount <= 0) {
@@ -675,6 +666,8 @@ public class GroupService {
         notify(sender.getUuid(), "Deposited " + amount, false);
     }
 
+    // --- Economy Extension ---
+
     public void getBalance(PlayerRef sender) {
         Group group = getGroupOrNotify(sender);
         if (group == null) return;
@@ -693,8 +686,6 @@ public class GroupService {
         notify(sender.getUuid(), "Bank Balance for " + group.getName() + ": " + group.getBankBalance(), false);
     }
 
-    // --- Helpers (Optimization) ---
-
     @Nullable
     private ChunkInfo getChunkInfo(PlayerRef sender) {
         Group group = getGroupOrNotify(sender);
@@ -705,6 +696,8 @@ public class GroupService {
         UUID world = sender.getWorldUuid();
         return new ChunkInfo(group, cx, cz, world);
     }
+
+    // --- Helpers (Optimization) ---
 
     private boolean hasPerm(Group g, PlayerRef p, Permission perm) {
         if (g.isLeader(p.getUuid())) return true;
@@ -729,9 +722,6 @@ public class GroupService {
         }
         notify(p.getUuid(), "Leader only.");
         return false;
-    }
-
-    private record ChunkInfo(Group group, int cx, int cz, UUID world) {
     }
 
     private void notify(UUID uuid, String msg) {
@@ -794,5 +784,11 @@ public class GroupService {
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    private record GroupData(Map<UUID, Group> groups) {
+    }
+
+    private record ChunkInfo(Group group, int cx, int cz, UUID world) {
     }
 }

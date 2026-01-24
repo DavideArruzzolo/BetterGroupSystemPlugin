@@ -16,12 +16,12 @@ import javax.annotation.Nonnull;
 public class BetterGroupSystemPlugin extends JavaPlugin {
 
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
-    private final Config<BetterGroupSystemPluginConfig> config;
     private static GroupService groupService;
+    private final Config<BetterGroupSystemPluginConfig> config;
 
     public BetterGroupSystemPlugin(@Nonnull JavaPluginInit init) {
         super(init);
-        this.config = this.withConfig("FactionConfig", BetterGroupSystemPluginConfig.CODEC);
+        this.config = this.withConfig("Config", BetterGroupSystemPluginConfig.CODEC);
         loadConfig();
     }
 
@@ -52,6 +52,7 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
         try {
             config.load();
             LOGGER.atInfo().log("Configuration load successfully");
+            saveConfig();
         } catch (Exception e) {
             LOGGER.atSevere().log("Failed to load configuration: " + e.getMessage());
         }
