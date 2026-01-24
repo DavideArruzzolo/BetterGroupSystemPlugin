@@ -12,14 +12,14 @@ import java.util.UUID;
 public class GroupHome {
     private UUID id;
     private String name;
-    private String world;
+    private UUID world;
     private double x;
     private double y;
     private double z;
     private float yaw;
     private float pitch;
 
-    public GroupHome(String name, String world, double x, double y, double z, float yaw, float pitch) {
+    public GroupHome(String name, UUID world, double x, double y, double z, float yaw, float pitch) {
         this.id = UUID.randomUUID();
         this.name = name;
         this.world = world;

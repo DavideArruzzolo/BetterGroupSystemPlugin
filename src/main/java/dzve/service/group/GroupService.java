@@ -6,7 +6,6 @@ import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.model.*;
 import dzve.service.JsonStorage;
 import dzve.service.NotificationService;
-import lombok.Getter;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -24,12 +23,12 @@ import static dzve.model.GroupType.FACTION;
 
 public class GroupService {
 
-    @Getter
-    private static class GroupData {
-        private final Map<UUID, Group> groups;
-
-        public GroupData(Map<UUID, Group> groups) {
-            this.groups = groups;
+    private void loadGroups() {
+        GroupData data = storage.load();
+        if (data != null && data.groups() != null) {
+            this.groups.putAll(data.groups());
+            groups.values().forEach(this::cacheGroupData);
+            LOGGER.atInfo().log("Loaded " + groups.size() + " groups.");
         }
     }
 
@@ -61,13 +60,8 @@ public class GroupService {
 
     // --- Core Logic ---
 
-    private void loadGroups() {
-        GroupData data = storage.load();
-        if (data != null && data.getGroups() != null) {
-            this.groups.putAll(data.getGroups());
-            groups.values().forEach(this::cacheGroupData);
-            LOGGER.atInfo().log("Loaded " + groups.size() + " groups.");
-        }
+    public void shutdown() {
+        storage.shutdown();
     }
 
     private void cacheGroupData(Group group) {
@@ -78,6 +72,23 @@ public class GroupService {
 
     public void saveGroups() {
         storage.saveAsync(new GroupData(new HashMap<>(groups)));
+    }
+
+    public void invitePlayer(PlayerRef sender, PlayerRef target) {
+        Group group = getGroupOrNotify(sender);
+        if (group == null || !checkPerm(group, sender, Permission.CAN_INVITE)) return;
+
+        if (playerGroupMap.containsKey(target.getUuid())) {
+            notify(sender.getUuid(), "Player already in a group.");
+            return;
+        }
+        if (group.getMemberCount() >= (group.getType().equals(FACTION) ? config.getMaxSize() : config.getMaxSize() + config.getSlotQuantityGainForLevel() * ((Guild) group).getLevel())) {
+            notify(sender.getUuid(), "Group full.");
+            return;
+        }
+
+        invitations.computeIfAbsent(target.getUuid(), k -> ConcurrentHashMap.newKeySet()).add(group.getId());
+        notify(sender.getUuid(), "Invited " + target.getUsername(), false);
     }
 
     /* --- I. Management Commands --- */
@@ -185,21 +196,22 @@ public class GroupService {
 
     /* --- II. Member Commands --- */
 
-    public void invitePlayer(PlayerRef sender, PlayerRef target) {
+    public void transferLeadership(PlayerRef sender, UUID targetId) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_INVITE)) return;
-
-        if (playerGroupMap.containsKey(target.getUuid())) {
-            notify(sender.getUuid(), "Player already in a group.");
-            return;
-        }
-        if (group.getMemberCount() >= (group.getType().equals(FACTION) ? config.getMaxSize() : config.getMaxSize() + config.getSlotQuantityGainForLevel() * group.getLevel())) {
-            notify(sender.getUuid(), "Group full.");
+        if (group == null || !checkLeader(group, sender)) return;
+        if (!group.isMember(targetId)) {
+            notify(sender.getUuid(), "Target not in group.");
             return;
         }
 
-        invitations.computeIfAbsent(target.getUuid(), k -> ConcurrentHashMap.newKeySet()).add(group.getId());
-        notify(sender.getUuid(), "Invited " + target.getUsername(), false);
+        GroupRole leaderRole = getRoleByPriority(group, Integer.MAX_VALUE);
+        GroupRole memberRole = getRoleByPriority(group, 50);
+
+        group.setLeaderId(targetId);
+        group.changeMemberRole(targetId, leaderRole.getId());
+        group.changeMemberRole(sender.getUuid(), memberRole.getId());
+        saveGroups();
+        notify(sender.getUuid(), "Leadership transferred.", false);
     }
 
     public void acceptInvitation(PlayerRef player, String groupName) {
@@ -224,7 +236,6 @@ public class GroupService {
             return;
         }
 
-        // Logic
         GroupRole defaultRole = group.getRoles().stream().filter(GroupRole::isDefault).findFirst().orElseThrow();
         group.addMember(player, defaultRole.getId());
         playerGroupMap.put(player.getUuid(), group.getId());
@@ -256,29 +267,30 @@ public class GroupService {
         notify(sender.getUuid(), "Member kicked.", false);
     }
 
-    public void transferLeadership(PlayerRef sender, UUID targetId, boolean confirm) {
+    public void setHome(PlayerRef sender, String name) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !checkLeader(group, sender)) return;
-        if (!group.isMember(targetId)) {
-            notify(sender.getUuid(), "Target not in group.");
+        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
+        if (group.getHomeCount() >= config.getMaxHome()) {
+            notify(sender.getUuid(), "Max homes reached.");
             return;
         }
-        if (!confirm) {
-            notify(sender.getUuid(), "Confirm with /group transfer <name> confirm");
+        if (group.getHome(name) != null) {
+            notify(sender.getUuid(), "Home exists.");
             return;
         }
 
-        GroupRole leaderRole = getRoleByPriority(group, Integer.MAX_VALUE);
-        GroupRole memberRole = getRoleByPriority(group, 50); // Fallback to member
+        int cx = (int) sender.getTransform().getPosition().getX() >> 4;
+        int cz = (int) sender.getTransform().getPosition().getZ() >> 4;
+        if (!group.isChunkClaimed(cx, cz, sender.getWorldUuid())) {
+            notify(sender.getUuid(), "Must be in claimed land.");
+            return;
+        }
 
-        group.setLeaderId(targetId);
-        group.changeMemberRole(targetId, leaderRole.getId());
-        group.changeMemberRole(sender.getUuid(), memberRole.getId());
+        group.addHome(new GroupHome(name, sender.getWorldUuid(), sender.getTransform().getPosition().getX(), sender.getTransform().getPosition().getY(), sender.getTransform().getPosition().getZ(), sender.getTransform().getRotation().getYaw(), sender.getTransform().getRotation().getPitch()));
         saveGroups();
-        notify(sender.getUuid(), "Leadership transferred.", false);
     }
 
-    // --- III. Role Commands ---
+    /* --- III. Role Commands --- */
 
     public void createRole(PlayerRef sender, String name, List<String> grants) {
         Group group = getGroupOrNotify(sender);
@@ -356,7 +368,6 @@ public class GroupService {
             return;
         }
 
-        // Prevent promoting above self
         GroupRole senderRole = getMemberRole(group, sender.getUuid());
         if (!group.isLeader(sender.getUuid()) && role.getPriority() >= senderRole.getPriority()) {
             notify(sender.getUuid(), "Cannot promote to rank >= yours.");
@@ -367,53 +378,15 @@ public class GroupService {
         saveGroups();
     }
 
-    // --- IV. Territory & V. Economy ---
-
-    public void setHome(PlayerRef sender, String name) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
-        if (group.getHomeCount() >= config.getMaxHome()) {
-            notify(sender.getUuid(), "Max homes reached.");
-            return;
-        }
-        if (group.getHome(name) != null) {
-            notify(sender.getUuid(), "Home exists.");
-            return;
-        }
-
-        int cx = (int) sender.getLocation().getX() >> 4;
-        int cz = (int) sender.getLocation().getZ() >> 4;
-        if (!group.isChunkClaimed(cx, cz, sender.getLocation().getWorldName())) {
-            notify(sender.getUuid(), "Must be in claimed land.");
-            return;
-        }
-
-        group.addHome(new GroupHome(name, sender.getLocation().getWorldName(), sender.getLocation().getX(), sender.getLocation().getY(), sender.getLocation().getZ(), sender.getLocation().getYaw(), sender.getLocation().getPitch()));
-        saveGroups();
-    }
-
-    public void teleportHome(PlayerRef sender, String name) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_TELEPORT_HOME)) return;
-
-        String target = (name == null) ? (group.getHomeCount() == 1 ? group.getHomes().iterator().next().getName() : "default") : name;
-        GroupHome home = group.getHome(target);
-
-        if (home != null) {
-            // sender.teleport(...) implementation required here
-            notify(sender.getUuid(), "Teleporting to " + target + "...", false);
-        } else {
-            notify(sender.getUuid(), "Home not found.");
-        }
-    }
+    /* --- IV. Territory & V. Economy --- */
 
     public void claimChunk(PlayerRef sender) {
         Group group = getGroupOrNotify(sender);
         if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_CLAIM)) return;
 
-        int cx = (int) sender.getLocation().getX() >> 4;
-        int cz = (int) sender.getLocation().getZ() >> 4;
-        String world = sender.getLocation().getWorldName();
+        int cx = (int) sender.getTransform().getPosition().getX() >> 4;
+        int cz = (int) sender.getTransform().getPosition().getZ() >> 4;
+        UUID world = sender.getWorldUuid();
 
         // Global check (is already claimed by ANY group?)
         boolean taken = groups.values().stream().anyMatch(g -> g.isChunkClaimed(cx, cz, world));
@@ -436,6 +409,39 @@ public class GroupService {
         group.addClaim(new GroupClaimedChunk(cx, cz, world));
         saveGroups();
         notify(sender.getUuid(), "Land claimed!", false);
+    }
+
+    public void teleportHome(PlayerRef sender, String name) {
+        Group group = getGroupOrNotify(sender);
+        if (group == null || !checkPerm(group, sender, Permission.CAN_TELEPORT_HOME)) return;
+
+        String target = (name == null) ? (group.getHomeCount() == 1 ? group.getHomes().iterator().next().getName() : "default") : name;
+        GroupHome home = group.getHome(target);
+
+        if (home != null) {
+            // sender.teleport(...) implementation required here
+            notify(sender.getUuid(), "Teleporting to " + target + "...", false);
+        } else {
+            notify(sender.getUuid(), "Home not found.");
+        }
+    }
+
+    public void unclaimChunk(PlayerRef sender) {
+        Group group = getGroupOrNotify(sender);
+        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_CLAIM)) return;
+
+        int cx = (int) sender.getTransform().getPosition().getX() >> 4;
+        int cz = (int) sender.getTransform().getPosition().getZ() >> 4;
+        UUID world = sender.getWorldUuid();
+
+        if (!group.isChunkClaimed(cx, cz, world)) {
+            notify(sender.getUuid(), "This land is not claimed by your group.");
+            return;
+        }
+
+        group.removeClaim(cx, cz, world);
+        saveGroups();
+        notify(sender.getUuid(), "Land unclaimed.", false);
     }
 
     public void withdraw(PlayerRef sender, double amount) {
@@ -527,22 +533,7 @@ public class GroupService {
 
     // --- Territory Extension ---
 
-    public void unclaimChunk(PlayerRef sender) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !checkPerm(group, sender, Permission.CAN_MANAGE_CLAIM)) return;
-
-        int cx = (int) sender.getLocation().getX() >> 4;
-        int cz = (int) sender.getLocation().getZ() >> 4;
-        String world = sender.getLocation().getWorldName();
-
-        if (!group.isChunkClaimed(cx, cz, world)) {
-            notify(sender.getUuid(), "This land is not claimed by your group.");
-            return;
-        }
-
-        group.removeClaim(cx, cz, world);
-        saveGroups();
-        notify(sender.getUuid(), "Land unclaimed.", false);
+    private record GroupData(Map<UUID, Group> groups) {
     }
 
     public void deleteHome(PlayerRef sender, String homeName) {

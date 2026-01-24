@@ -85,13 +85,9 @@ public class Group {
     }
 
 
-    public boolean changeMemberRole(UUID playerId, UUID newRoleId) {
+    public void changeMemberRole(UUID playerId, UUID newRoleId) {
         GroupMember member = getMember(playerId);
-        if (member != null) {
-            member.setRoleId(newRoleId);
-            return true;
-        }
-        return false;
+        member.setRoleId(newRoleId);
     }
 
     public void deposit(double amount) {
@@ -110,10 +106,6 @@ public class Group {
 
     public int getMemberCount() {
         return members.size();
-    }
-
-    public int getClaimCount() {
-        return claims.size();
     }
 
     public int getHomeCount() {
@@ -155,14 +147,14 @@ public class Group {
         claims.add(claim);
     }
 
-    public boolean removeClaim(int chunkX, int chunkZ, String world) {
-        return claims.removeIf(claim ->
+    public void removeClaim(int chunkX, int chunkZ, UUID world) {
+        claims.removeIf(claim ->
                 claim.getChunkX() == chunkX &&
                         claim.getChunkZ() == chunkZ &&
                         claim.getWorld().equals(world));
     }
 
-    public boolean isChunkClaimed(int chunkX, int chunkZ, String world) {
+    public boolean isChunkClaimed(int chunkX, int chunkZ, UUID world) {
         return claims.stream().anyMatch(claim ->
                 claim.getChunkX() == chunkX &&
                         claim.getChunkZ() == chunkZ &&

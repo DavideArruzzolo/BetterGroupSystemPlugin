@@ -7,10 +7,12 @@ import com.hypixel.hytale.server.core.util.Config;
 import dzve.command.BaseGroupCommand;
 import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.service.group.GroupService;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 
 
+@Getter
 public class BetterGroupSystemPlugin extends JavaPlugin {
 
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
@@ -19,7 +21,6 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
 
     public BetterGroupSystemPlugin(@Nonnull JavaPluginInit init) {
         super(init);
-        LOGGER.atInfo().log("Hello from " + this.getName() + " version " + this.getManifest().getVersion().toString());
         this.config = this.withConfig("FactionConfig", BetterGroupSystemPluginConfig.CODEC);
         loadConfig();
     }
@@ -58,7 +59,4 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
         }
     }
 
-    public Config<BetterGroupSystemPluginConfig> getConfig() {
-        return config;
-    }
 }
