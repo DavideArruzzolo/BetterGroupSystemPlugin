@@ -66,7 +66,7 @@ public class MapPlayerListener {
                 return status != DiplomacyStatus.ALLY;
             }
 
-            return true; // Filtra tutti gli altri
+            return true;
         });
     }
 }

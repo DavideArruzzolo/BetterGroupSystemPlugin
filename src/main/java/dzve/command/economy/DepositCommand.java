@@ -3,7 +3,6 @@ package dzve.command.economy;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
-import com.hypixel.hytale.server.core.command.system.arguments.system.OptionalArg;
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
@@ -18,21 +17,14 @@ public class DepositCommand extends AbstractPlayerCommand {
     private final GroupService groupService;
     @Nonnull
     private final RequiredArg<Double> amount = withRequiredArg("amount", "Quantity", ArgTypes.DOUBLE);
-    @Nonnull
-    private final OptionalArg<String> type = withOptionalArg("type", "player or group", ArgTypes.STRING);
 
     public DepositCommand(GroupService groupService) {
-        super("deposit", "Deposit money into your personal or group bank");
+        super("deposit", "Deposit money into your group bank");
         this.groupService = groupService;
     }
 
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
-        String target = type.get(ctx);
-        if (target != null && target.equalsIgnoreCase("group")) {
-            groupService.depositToGroup(player, amount.get(ctx));
-        } else {
-            groupService.deposit(player, amount.get(ctx));
-        }
+        groupService.depositToGroup(player, amount.get(ctx));
     }
 }

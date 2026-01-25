@@ -100,7 +100,6 @@ public abstract class Group {
         return leaderId != null && leaderId.equals(playerId);
     }
 
-
     public void changeMemberRole(UUID playerId, UUID newRoleId) {
         GroupMember member = getMember(playerId);
         member.setRoleId(newRoleId);

@@ -57,9 +57,9 @@ public class GroupService {
 
     private final JsonStorage<GroupData> storage;
     private final Map<UUID, Group> groups = new ConcurrentHashMap<>();
-    private final Map<UUID, UUID> playerGroupMap = new ConcurrentHashMap<>(); // PlayerUUID -> GroupUUID
-    private final Map<UUID, Set<UUID>> invitations = new ConcurrentHashMap<>(); // PlayerUUID -> Set<GroupUUID>
-    // Cache unicità
+    private final Map<UUID, UUID> playerGroupMap = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<UUID>> invitations = new ConcurrentHashMap<>();
+
     private final Set<String> namesGroups = ConcurrentHashMap.newKeySet();
     private final Set<String> tagsGroups = ConcurrentHashMap.newKeySet();
 
@@ -94,8 +94,6 @@ public class GroupService {
         notify(player, "Data is reloaded.", false);
     }
 
-    // --- Core Logic ---
-
     public void shutdown() {
         storage.shutdown();
     }
@@ -126,8 +124,6 @@ public class GroupService {
         invitations.computeIfAbsent(target.getUuid(), k -> ConcurrentHashMap.newKeySet()).add(group.getId());
         notify(sender, "Invited " + target.getUsername(), false);
     }
-
-    /* --- I. Management Commands --- */
 
     public void createGroup(PlayerRef player, String name, String tag, @Nullable String color, @Nullable String desc) {
         if (playerGroupMap.containsKey(player.getUuid())) {
@@ -265,8 +261,6 @@ public class GroupService {
         saveGroups();
     }
 
-    /* --- II. Member Commands --- */
-
     public void transferLeadership(PlayerRef sender, UUID targetId) {
         Group group = getGroupOrNotify(sender);
         if (group == null || !isLeader(group, sender)) return;
@@ -364,8 +358,6 @@ public class GroupService {
         saveGroups();
         notify(sender, "Home set successfully.", false);
     }
-
-    /* --- III. Role Commands --- */
 
     public void createRole(PlayerRef sender, String name, List<String> grants) {
         Group group = getGroupOrNotify(sender);
@@ -470,8 +462,6 @@ public class GroupService {
         saveGroups();
     }
 
-    /* --- IV. Territory & V. Economy --- */
-
     public void claimChunk(PlayerRef sender, World world) {
         ChunkInfo chunkInfo = getChunkInfo(sender, world);
         if (chunkInfo == null) return;
@@ -564,6 +554,21 @@ public class GroupService {
             return;
         }
 
+        Set<GroupHome> homesToRemove = new HashSet<>();
+        for (GroupHome home : chunkInfo.group.getHomes()) {
+            int homeChunkX = (int) home.getX() >> 5;
+            int homeChunkZ = (int) home.getZ() >> 5;
+            if (homeChunkX == chunkInfo.cx && homeChunkZ == chunkInfo.cz &&
+                    home.getName().equals(world.getName())) {
+                homesToRemove.add(home);
+            }
+        }
+
+        if (!homesToRemove.isEmpty()) {
+            chunkInfo.group.getHomes().removeAll(homesToRemove);
+            notify(sender, "Removed " + homesToRemove.size() + " home(s) from this chunk.", false);
+        }
+
         chunkInfo.group.removeClaim(chunkInfo.cx, chunkInfo.cz, world.getName());
         saveGroups();
         notify(sender, "Land unclaimed.", false);
@@ -573,14 +578,26 @@ public class GroupService {
         Group group = getGroupOrNotify(sender);
         if (group == null) return;
 
-        if (amount <= 0 || !group.withdraw(amount, sender.getUuid())) {
-            notify(sender, "Invalid amount or insufficient funds.");
+        if (!hasPerm(group, sender, Permission.CAN_MANAGE_BANK)) {
             return;
         }
 
-        // EconomyService.add(sender, amount);
+        if (amount <= 0) {
+            notify(sender, "Amount must be positive.");
+            return;
+        }
+
+        double groupBankBalance = group.getBankBalance();
+        if (groupBankBalance < amount) {
+            notify(sender, "Insufficient group bank funds. Group has " + groupBankBalance + " but need " + amount);
+            return;
+        }
+
+        group.withdrawFromGroup(amount, sender.getUuid());
+        group.deposit(amount, sender.getUuid());
+
         saveGroups();
-        notify(sender, "Withdrawn " + amount, false);
+        notify(sender, "Withdrawn " + amount + ". New balance: " + group.getBalance(sender.getUuid()), false);
     }
 
     public void withdrawFromGroup(PlayerRef sender, double amount) {
@@ -592,7 +609,6 @@ public class GroupService {
             return;
         }
 
-        // EconomyService.add(sender, amount);
         saveGroups();
         notify(sender, "Withdrawn " + amount + " from group bank", false);
     }
@@ -618,8 +634,6 @@ public class GroupService {
             notify(sender, "Insufficient funds in group bank to upgrade.");
         }
     }
-
-    // --- Info & Lists ---
 
     public void getGroupInfo(PlayerRef sender, @Nullable String targetGroupName) {
 
@@ -683,7 +697,6 @@ public class GroupService {
         sender.sendMessage(msg.toMessage());
     }
 
-
     public void listInvitations(PlayerRef sender) {
         Set<UUID> invites = invitations.get(sender.getUuid());
         if (invites == null || invites.isEmpty()) {
@@ -729,20 +742,24 @@ public class GroupService {
 
         ChatFormatter.StyledText msg = ChatFormatter.of("Roles for " + group.getName() + ":\n");
 
-        group.getRoles().stream()
-                .sorted(Comparator.comparingInt(GroupRole::getPriority).reversed())
-                .forEach(role -> {
-                    String perms = role.getPermissions().stream()
-                            .map(Permission::name)
-                            .collect(Collectors.joining(", "));
+        if (group.getRoles().isEmpty()) {
+            msg.append("No roles found.");
+        } else {
+            group.getRoles().stream()
+                    .sorted(Comparator.comparingInt(GroupRole::getPriority).reversed())
+                    .forEach(role -> {
+                        String perms = role.getPermissions().stream()
+                                .map(Permission::name)
+                                .collect(Collectors.joining(", "));
 
-                    msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n")
-                            .append("Role: ").append(role.getName() + "\n").withBold()
-                            .append("Priority: ").append(role.getPriority() + "\n")
-                            .append("Permissions: ").append(perms.isEmpty() ? "None" : perms + "\n");
-                });
+                        msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n")
+                                .append("Role: ").append(role.getName() + "\n").withBold()
+                                .append("Priority: ").append(role.getPriority() + "\n")
+                                .append("Permissions: ").append(perms.isEmpty() ? "None" : perms + "\n");
+                    });
 
-        msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-");
+            msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-");
+        }
         sender.sendMessage(msg.toMessage());
     }
 
@@ -754,23 +771,21 @@ public class GroupService {
             return;
         }
 
+        ChatFormatter.StyledText msg = ChatFormatter.of("Homes for " + group.getName() + ":\n").withBold();
+
         Set<GroupHome> homes = group.getHomes();
         if (homes.isEmpty()) {
-            notify(sender, "Your group has no homes set.", false);
-            return;
+            msg.append("Your group has no homes set.");
+        } else {
+            homes.stream()
+                    .sorted(Comparator.comparing(GroupHome::getName))
+                    .forEach(home -> {
+                        msg.append("- " + home.getName() + ": ")
+                                .append("x=" + (int) home.getX() + ", y=" + (int) home.getY() + ", z=" + (int) home.getZ() + "\n");
+                    });
         }
-
-        ChatFormatter.StyledText msg = ChatFormatter.of("Homes for " + group.getName() + ":\n").withBold();
-        homes.stream()
-                .sorted(Comparator.comparing(GroupHome::getName))
-                .forEach(home -> {
-                    msg.append("- " + home.getName() + ": ")
-                            .append("x=" + (int) home.getX() + ", y=" + (int) home.getY() + ", z=" + (int) home.getZ() + "\n");
-                });
         sender.sendMessage(msg.toMessage());
     }
-
-    // --- Territory Extension ---
 
     public void deleteHome(PlayerRef sender, String homeName) {
         Group group = getGroupOrNotify(sender);
@@ -822,18 +837,15 @@ public class GroupService {
         }
 
         if (status == DiplomacyStatus.ALLY) {
-            // Qui servirebbe un sistema di "Richiesta Alleanza" simile agli inviti.
-            // Per ora lo setto diretto come da tua richiesta semplificata, ma idealmente è bidirezionale.
+
             notify(sender, "Alliance request sent (Not implemented fully).", false);
         } else {
-            // Neutral o Enemy si possono settare unilateralmente
+
             group.setDiplomacyStatus(target.getId(), status);
             saveGroups();
             notify(sender, "Diplomacy with " + target.getName() + " set to " + status, false);
         }
     }
-
-    // --- Diplomacy ---
 
     public void listDiplomacy(PlayerRef sender) {
         Group group = getGroupOrNotify(sender);
@@ -885,17 +897,21 @@ public class GroupService {
         Group group = getGroupOrNotify(sender);
         if (group == null) return;
 
+        double playerBalance = group.getBalance(sender.getUuid());
+        if (playerBalance < amount) {
+            notify(sender, "Insufficient personal balance. You have " + playerBalance + " but need " + amount);
+            return;
+        }
 
+        group.withdraw(amount, sender.getUuid());
         group.depositToGroup(amount);
         if (group instanceof Guild guild) {
             guild.getMoneyContributions().merge(sender.getUuid(), amount, Double::sum);
         }
 
         saveGroups();
-        notify(sender, "Deposited " + amount + " to group bank", false);
+        notify(sender, "Deposited " + amount + " to group bank.", false);
     }
-
-    // --- Economy Extension ---
 
     public void getBalance(PlayerRef sender, @Nullable String type) {
         Group group = getGroupOrNotify(sender);
@@ -919,8 +935,6 @@ public class GroupService {
         int cz = (int) sender.getTransform().getPosition().getZ() >> 5;
         return new ChunkInfo(group, cx, cz, world.getName());
     }
-
-    // --- Helpers (Optimization) ---
 
     private boolean hasPerm(Group g, PlayerRef p, Permission perm) {
         if (g.isLeader(p.getUuid())) return true;
@@ -961,7 +975,7 @@ public class GroupService {
     }
 
     public void notify(PlayerRef player, String msg, boolean isError) {
-        notificationService.sendNotification(player.getUuid(), msg, isError ? Danger : Success); // Simplification
+        notificationService.sendNotification(player.getUuid(), msg, isError ? Danger : Success);
     }
 
     private boolean validateIdentifier(PlayerRef player, String val, int min, int max, Set<String> cache, String field) {
@@ -1030,7 +1044,6 @@ public class GroupService {
         Group group = getGroupOrNotify(sender);
         if (group == null) return;
 
-        // Remove first element (command name) from message array
         String[] messageContent = message.length > 1 ? Arrays.copyOfRange(message, 1, message.length) : new String[0];
 
         ChatFormatter.StyledText styledMessage = ChatFormatter.of("[GroupChat]")
@@ -1050,7 +1063,6 @@ public class GroupService {
         Group group = getGroupOrNotify(sender);
         if (group == null) return;
 
-        // Remove first element (command name) from message array
         String[] messageContent = message.length > 1 ? Arrays.copyOfRange(message, 1, message.length) : new String[0];
 
         ChatFormatter.StyledText styledMessage = ChatFormatter.of("[AllyChat]")

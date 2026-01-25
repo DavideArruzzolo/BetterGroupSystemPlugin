@@ -14,7 +14,6 @@ import javax.annotation.Nonnull;
 public class ListInvitationsCommand extends AbstractPlayerCommand {
     private final GroupService groupService;
 
-
     public ListInvitationsCommand(GroupService groupService) {
         super("invitationList", "List your pending group invitations");
         this.groupService = groupService;

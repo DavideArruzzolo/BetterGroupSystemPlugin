@@ -22,7 +22,6 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.util.Objects;
 
-
 @Getter
 public class BetterGroupSystemPlugin extends JavaPlugin {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();

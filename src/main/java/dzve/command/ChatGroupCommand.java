@@ -19,7 +19,6 @@ public class ChatGroupCommand extends AbstractPlayerCommand {
         this.setAllowsExtraArguments(true);
     }
 
-
     @Override
     protected void execute(@NonNullDecl CommandContext commandContext, @NonNullDecl Store<EntityStore> store, @NonNullDecl Ref<EntityStore> ref, @NonNullDecl PlayerRef playerRef, @NonNullDecl World world) {
         String[] args = commandContext.getInputString().trim().split("\\s+");

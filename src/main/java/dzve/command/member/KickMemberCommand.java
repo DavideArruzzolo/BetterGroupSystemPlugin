@@ -16,7 +16,6 @@ import javax.annotation.Nonnull;
 
 public class KickMemberCommand extends AbstractPlayerCommand {
     private final GroupService groupService;
-    // Usiamo GAME_PROFILE_LOOKUP per ottenere l'UUID anche se offline
     @Nonnull
     private final RequiredArg<ProfileServiceClient.PublicGameProfile> target = withRequiredArg("target", "Member to kick", ArgTypes.GAME_PROFILE_LOOKUP);
 

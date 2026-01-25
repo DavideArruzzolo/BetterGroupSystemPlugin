@@ -15,7 +15,6 @@ import javax.annotation.Nonnull;
 
 public class InvitePlayerCommand extends AbstractPlayerCommand {
     private final GroupService groupService;
-    // Usiamo PLAYER_REF perché l'utente deve essere online per ricevere l'invito immediato
     @Nonnull
     private final RequiredArg<PlayerRef> target = withRequiredArg("target", "Player to invite", ArgTypes.PLAYER_REF);
 

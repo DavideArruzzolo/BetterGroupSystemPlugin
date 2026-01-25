@@ -30,7 +30,6 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
         super(betterGroupSystemPluginConfig.getAllCommandsPrefix(), "Main command for group system");
         setPermissionGroup(GameMode.Adventure);
 
-        // --- I. Management ---
         GroupService groupService = GroupService.getInstance(betterGroupSystemPluginConfig);
         addSubCommand(new CreateGroupCommand(groupService));
         addSubCommand(new UpdateGroupCommand(groupService));
@@ -39,20 +38,17 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
         addSubCommand(new UpgradeGuildCommand(groupService));
         addSubCommand(new ReloadCommand(groupService));
 
-        // --- II. Members ---
         addSubCommand(new InvitePlayerCommand(groupService));
         addSubCommand(new AcceptInvitationCommand(groupService));
         addSubCommand(new KickMemberCommand(groupService));
         addSubCommand(new TransferLeadershipCommand(groupService));
 
-        // --- III. Roles ---
         addSubCommand(new CreateRoleCommand(groupService));
         addSubCommand(new SetRoleCommand(groupService));
         addSubCommand(new DeleteRoleCommand(groupService));
         addSubCommand(new UpdateRoleCommand(groupService));
         addSubCommand(new ListRolesCommand(groupService));
 
-        // --- IV. Territory ---
         addSubCommand(new ClaimChunkCommand(groupService));
         addSubCommand(new UnclaimChunkCommand(groupService));
         addSubCommand(new SetHomeCommand(groupService));
@@ -61,13 +57,11 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
         addSubCommand(new SetDefaultHomeCommand(groupService));
         addSubCommand(new ListHomesCommand(groupService));
 
-        // --- V. Economy & Misc ---
         addSubCommand(new DepositCommand(groupService));
         addSubCommand(new WithdrawCommand(groupService));
         addSubCommand(new GetBalanceCommand(groupService));
         addSubCommand(new GroupInfoCommand(groupService));
 
-        // --- VI. Diplomacy ---
         addSubCommand(new DiplomacyCommand(groupService));
         addSubCommand(new ListDiplomacyCommand(groupService));
         addSubCommand(new ListInvitationsCommand(groupService));

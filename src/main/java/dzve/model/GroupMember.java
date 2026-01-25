@@ -19,7 +19,6 @@ public class GroupMember {
     private UUID defaultHome;
     private double bankBalance;
 
-
     public GroupMember(UUID playerId, String playerName, UUID roleId) {
         this.playerId = playerId;
         this.playerName = playerName;

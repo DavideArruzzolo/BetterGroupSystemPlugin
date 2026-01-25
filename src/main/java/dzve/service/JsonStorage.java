@@ -86,7 +86,6 @@ public class JsonStorage<T> {
         }
     }
 
-
     public T load() {
         lock.readLock().lock();
         try {
