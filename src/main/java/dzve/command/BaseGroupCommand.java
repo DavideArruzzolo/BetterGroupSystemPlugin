@@ -11,16 +11,12 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dzve.command.diplomacy.DiplomacyCommand;
 import dzve.command.diplomacy.ListDiplomacyCommand;
-import dzve.command.diplomacy.ListInvitationsCommand;
 import dzve.command.economy.DepositCommand;
 import dzve.command.economy.GetBalanceCommand;
 import dzve.command.economy.WithdrawCommand;
 import dzve.command.management.*;
 import dzve.command.member.*;
-import dzve.command.role.CreateRoleCommand;
-import dzve.command.role.DeleteRoleCommand;
-import dzve.command.role.SetRoleCommand;
-import dzve.command.role.UpdateRoleCommand;
+import dzve.command.role.*;
 import dzve.command.territory.*;
 import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.service.group.GroupService;
@@ -38,9 +34,10 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
         GroupService groupService = GroupService.getInstance(betterGroupSystemPluginConfig);
         addSubCommand(new CreateGroupCommand(groupService));
         addSubCommand(new UpdateGroupCommand(groupService));
-        addSubCommand(new DeleteGroupCommand(groupService));
+        addSubCommand(new DisbandGroupCommand(groupService));
         addSubCommand(new LeaveGroupCommand(groupService));
         addSubCommand(new UpgradeGuildCommand(groupService));
+        addSubCommand(new ReloadCommand(groupService));
 
         // --- II. Members ---
         addSubCommand(new InvitePlayerCommand(groupService));
@@ -62,6 +59,7 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
         addSubCommand(new HomeCommand(groupService));
         addSubCommand(new DeleteHomeCommand(groupService));
         addSubCommand(new SetDefaultHomeCommand(groupService));
+        addSubCommand(new ListHomesCommand(groupService));
 
         // --- V. Economy & Misc ---
         addSubCommand(new DepositCommand(groupService));
@@ -77,16 +75,10 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
 
     @Override
     protected void execute(@Nonnull CommandContext commandContext, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef playerRef, @Nonnull World world) {
-        // Mostra la lista dei comandi se viene digitato solo il comando base
-        Message message = ChatFormatter.of(BetterGroupSystemPluginConfig.MOD_NAME + " Available commands:\n")
-                .withMonospace().withBold().toMessage();
-
+        Message message = ChatFormatter.of(BetterGroupSystemPluginConfig.MOD_NAME + " Available commands:").toMessage();
         playerRef.sendMessage(message);
-
-        // Qui potresti iterare sui subcommands per generare una help list dinamica
         getSubCommands().forEach((name, cmd) -> {
-            playerRef.sendMessage(ChatFormatter.of(" - " + name).toMessage());
-            System.out.println(name);
+            playerRef.sendMessage(ChatFormatter.of(" - " + name + ": " + cmd.getDescription()).toMessage());
         });
     }
 }

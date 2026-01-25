@@ -1,4 +1,4 @@
-package dzve.command.diplomacy;
+package dzve.command.management;
 
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -11,16 +11,16 @@ import dzve.service.group.GroupService;
 
 import javax.annotation.Nonnull;
 
-public class ListDiplomacyCommand extends AbstractPlayerCommand {
+public class DisbandGroupCommand extends AbstractPlayerCommand {
     private final GroupService groupService;
 
-    public ListDiplomacyCommand(GroupService groupService) {
-        super("diplomacyList", "List your group's diplomatic relations");
+    public DisbandGroupCommand(GroupService groupService) {
+        super("disband", "Disband your group");
         this.groupService = groupService;
     }
 
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
-        groupService.listDiplomacy(player);
+        groupService.disband(player);
     }
 }

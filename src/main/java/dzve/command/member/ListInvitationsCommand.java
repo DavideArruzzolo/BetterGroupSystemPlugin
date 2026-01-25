@@ -1,4 +1,4 @@
-package dzve.command.diplomacy;
+package dzve.command.member;
 
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -16,7 +16,7 @@ public class ListInvitationsCommand extends AbstractPlayerCommand {
 
 
     public ListInvitationsCommand(GroupService groupService) {
-        super("listinvitations", "List your pending group invitations");
+        super("invitationList", "List your pending group invitations");
         this.groupService = groupService;
     }
 

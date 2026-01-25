@@ -22,7 +22,8 @@ public class SetRoleCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> roleName = withRequiredArg("role", "Role Name", ArgTypes.STRING);
 
     public SetRoleCommand(GroupService groupService) {
-        super("set_role", "Assign a role to a member");
+        super("setRole", "Assign a role to a member");
+        this.addAliases("promote", "demote");
         this.groupService = groupService;
     }
 

@@ -10,6 +10,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class GroupClaimedChunk {
+    @EqualsAndHashCode.Include
     private UUID id;
     private int chunkX;
     private int chunkZ;

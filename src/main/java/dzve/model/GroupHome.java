@@ -10,6 +10,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class GroupHome {
+    @EqualsAndHashCode.Include
     private UUID id;
     private String name;
     private UUID world;

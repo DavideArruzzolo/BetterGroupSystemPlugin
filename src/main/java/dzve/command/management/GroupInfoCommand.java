@@ -19,7 +19,7 @@ public class GroupInfoCommand extends AbstractPlayerCommand {
     private final OptionalArg<String> target = withOptionalArg("group", "Target group name", ArgTypes.STRING);
 
     public GroupInfoCommand(GroupService groupService) {
-        super("info", "View group information");
+        super("groupInfo", "View group information");
         this.groupService = groupService;
     }
 

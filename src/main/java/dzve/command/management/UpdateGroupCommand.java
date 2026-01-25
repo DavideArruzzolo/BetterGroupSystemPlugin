@@ -21,7 +21,7 @@ public class UpdateGroupCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> value = withRequiredArg("value", "New value", ArgTypes.STRING);
 
     public UpdateGroupCommand(GroupService groupService) {
-        super("update", "Update group settings");
+        super("editGroup", "Update group settings");
         this.groupService = groupService;
     }
 

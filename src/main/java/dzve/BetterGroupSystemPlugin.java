@@ -18,11 +18,18 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     private static GroupService groupService;
     private final Config<BetterGroupSystemPluginConfig> config;
+    private static BetterGroupSystemPlugin instance;
+    private BaseGroupCommand baseGroupCommand;
 
     public BetterGroupSystemPlugin(@Nonnull JavaPluginInit init) {
         super(init);
+        instance = this;
         this.config = this.withConfig("Config", BetterGroupSystemPluginConfig.CODEC);
         loadConfig();
+    }
+
+    public static BetterGroupSystemPlugin getInstance() {
+        return instance;
     }
 
     @Override
@@ -30,7 +37,8 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
         LOGGER.atInfo().log("Setting up plugin " + this.getName());
         LOGGER.atInfo().log("Plugin mode: " + config.get().getPluginMode());
         groupService = GroupService.getInstance(config.get());
-        this.getCommandRegistry().registerCommand(new BaseGroupCommand(config.get()));
+        baseGroupCommand = new BaseGroupCommand(config.get());
+        this.getCommandRegistry().registerCommand(baseGroupCommand);
     }
 
     @Override
@@ -57,5 +65,4 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
             LOGGER.atSevere().log("Failed to load configuration: " + e.getMessage());
         }
     }
-
 }

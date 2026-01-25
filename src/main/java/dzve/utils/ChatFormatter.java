@@ -2,6 +2,7 @@ package dzve.utils;
 
 import com.hypixel.hytale.protocol.MaybeBool;
 import com.hypixel.hytale.server.core.Message;
+import lombok.ToString;
 
 import java.awt.*;
 import java.util.*;
@@ -10,6 +11,7 @@ import java.util.regex.Pattern;
 
 import static java.util.Map.entry;
 
+@ToString
 public final class ChatFormatter {
     private static final Pattern TAG_PATTERN = Pattern.compile("<(/?)([a-zA-Z0-9_]+)(?::([^>]+))?>");
     private static final Map<String, Color> NAMED_COLORS = Map.ofEntries(
@@ -135,6 +137,7 @@ public final class ChatFormatter {
         return null;
     }
 
+    @ToString
     public static class StyledText {
         private final List<Segment> segments;
 

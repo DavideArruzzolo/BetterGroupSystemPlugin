@@ -26,7 +26,7 @@ public class UpdateRoleCommand extends AbstractPlayerCommand {
     private final OptionalArg<String> removeGrants = withOptionalArg("remove_grants", "Permissions to remove (space separated)", ArgTypes.STRING);
 
     public UpdateRoleCommand(GroupService groupService) {
-        super("update_role", "Update a role's permissions");
+        super("updateRole", "Update a role's permissions");
         this.groupService = groupService;
     }
 

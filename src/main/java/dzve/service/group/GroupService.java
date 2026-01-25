@@ -6,6 +6,7 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
+import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.command.system.arguments.types.Coord;
 import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
@@ -26,6 +27,7 @@ import java.text.Normalizer;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -63,12 +65,21 @@ public class GroupService {
     }
 
     private void loadGroups() {
+        groups.clear();
+        playerGroupMap.clear();
+        namesGroups.clear();
+        tagsGroups.clear();
         GroupData data = storage.load();
         if (data != null && data.groups() != null) {
             this.groups.putAll(data.groups());
             groups.values().forEach(this::cacheGroupData);
             LOGGER.atInfo().log("Loaded " + groups.size() + " groups.");
         }
+    }
+
+    public void reload(PlayerRef player) {
+        loadGroups();
+        notify(player, "Data is reloaded.", false);
     }
 
     // --- Core Logic ---
@@ -142,7 +153,7 @@ public class GroupService {
         notify(player, "Group created successfully!", false);
     }
 
-    public void deleteGroup(PlayerRef player) {
+    public void disband(PlayerRef player) {
         Group group = getGroupOrNotify(player);
         if (group == null || !isLeader(group, player)) return;
 
@@ -164,7 +175,7 @@ public class GroupService {
         }
 
         if (group.getMembers().size() <= 1) {
-            deleteGroup(player);
+            disband(player);
         } else {
             group.removeMember(player.getUuid());
             playerGroupMap.remove(player.getUuid());
@@ -180,33 +191,63 @@ public class GroupService {
         switch (type.toLowerCase()) {
             case "name" -> {
                 String sName = normalize(value);
+                if (sName.equalsIgnoreCase(group.getName())) {
+                    notify(player, "Group name is already set to this value.");
+                    return;
+                }
                 if (validateIdentifier(player, sName, config.getMinNameLength(), config.getMaxNameLength(), namesGroups, "Name")) {
                     namesGroups.remove(group.getName().toLowerCase());
                     group.setName(sName);
                     namesGroups.add(sName.toLowerCase());
                     notify(player, "The name of the group updated successfully", false);
+                } else {
+                    return;
                 }
             }
             case "tag" -> {
                 String sTag = normalize(value);
+                if (sTag.equalsIgnoreCase(group.getTag())) {
+                    notify(player, "Group tag is already set to this value.");
+                    return;
+                }
                 if (validateIdentifier(player, sTag, config.getMinTagLength(), config.getMaxTagLength(), tagsGroups, "Tag")) {
                     tagsGroups.remove(group.getTag().toLowerCase());
                     group.setTag(sTag);
                     tagsGroups.add(sTag.toLowerCase());
                     notify(player, "The tag of the group updated successfully", false);
+                } else {
+                    return;
                 }
             }
             case "color" -> {
+                if (group.getColor() != null && group.getColor().equalsIgnoreCase(value)) {
+                    notify(player, "Group color is already set to this value.");
+                    return;
+                }
                 if (HEX_PATTERN.matcher(value).matches()) {
                     group.setColor(value);
                     notify(player, "The color of the group updated successfully", false);
-                } else notify(player, "Invalid hex color.");
+                } else {
+                    notify(player, "Invalid hex color.");
+                    return;
+                }
             }
             case "desc" -> {
+                if (group.getDescription() != null && group.getDescription().equals(value)) {
+                    notify(player, "Group description is already set to this value.");
+                    return;
+                }
                 if (value.length() <= config.getMaxDescriptionLength()) {
                     group.setDescription(value);
                     notify(player, "The description of the group updated successfully", false);
-                } else notify(player, "Desc too long.");
+                } else {
+                    notify(player, "Desc too long.");
+                    return;
+                }
+            }
+            default -> {
+                notify(player, "Invalid property to update.");
+                return;
             }
         }
         saveGroups();
@@ -300,8 +341,8 @@ public class GroupService {
             return;
         }
 
-        int cx = (int) sender.getTransform().getPosition().getX() >> 4;
-        int cz = (int) sender.getTransform().getPosition().getZ() >> 4;
+        int cx = (int) sender.getTransform().getPosition().getX() >> 5;
+        int cz = (int) sender.getTransform().getPosition().getZ() >> 5;
         if (!group.isChunkClaimed(cx, cz, sender.getWorldUuid())) {
             notify(sender, "Must be in claimed land.");
             return;
@@ -441,14 +482,16 @@ public class GroupService {
         if (group == null || !hasPerm(group, sender, Permission.CAN_TELEPORT_HOME)) return;
 
         GroupMember member = group.getMember(sender.getUuid());
-        GroupHome home = null;
+        GroupHome home;
 
         if (name != null) {
             home = group.getHome(name);
         } else if (member.getDefaultHome() != null) {
             home = group.getHomeById(member.getDefaultHome());
-        } else if (group.getHomeCount() == 1) {
-            home = group.getHomes().iterator().next();
+        } else if (group.getHomeCount() >= 1) {
+            home = group.getHomes().stream().findFirst().orElse(null);
+        } else {
+            home = null;
         }
 
         if (home != null) {
@@ -472,17 +515,19 @@ public class GroupService {
             double z = relZ.resolveXZ(previousPos.getZ());
             double y = relY.resolveYAtWorldCoords(previousPos.getY(), world, x, z);
 
-            notify(sender, "Teleporting to " + home.getName() + "...", false);
+            notify(sender, "Teleporting to " + home.getName() + " in 5sec...", false);
 
-            Teleport teleport = Teleport.createForPlayer(
-                    new Vector3d(x, y, z),
-                    new Vector3f(previousBodyRotation.getPitch(), home.getYaw(), previousBodyRotation.getRoll())
-            ).setHeadRotation(new Vector3f(home.getPitch(), home.getYaw(), 0));
+            HytaleServer.SCHEDULED_EXECUTOR.schedule(() -> world.execute(() -> {
+                Teleport teleport = Teleport.createForPlayer(
+                        new Vector3d(x, y, z),
+                        new Vector3f(previousBodyRotation.getPitch(), home.getYaw(), previousBodyRotation.getRoll())
+                ).setHeadRotation(new Vector3f(home.getPitch(), home.getYaw(), 0));
 
-            store.addComponent(ref, Teleport.getComponentType(), teleport);
-            store.ensureAndGetComponent(ref, TeleportHistory.getComponentType())
-                    .append(world, previousPos, previousHeadRotation,
-                            String.format("Teleport to (%s, %s, %s)", x, y, z));
+                store.addComponent(ref, Teleport.getComponentType(), teleport);
+                store.ensureAndGetComponent(ref, TeleportHistory.getComponentType())
+                        .append(world, previousPos, previousHeadRotation,
+                                String.format("Teleport to (%s, %s, %s)", x, y, z));
+            }), 5, TimeUnit.SECONDS);
 
         } else {
             notify(sender, "Home not found.");
@@ -680,6 +725,30 @@ public class GroupService {
         sender.sendMessage(msg.toMessage());
     }
 
+    public void listHomes(PlayerRef sender) {
+        Group group = getGroupOrNotify(sender);
+        if (group == null) return;
+
+        if (!hasPerm(group, sender, Permission.CAN_TELEPORT_HOME)) {
+            return;
+        }
+
+        Set<GroupHome> homes = group.getHomes();
+        if (homes.isEmpty()) {
+            notify(sender, "Your group has no homes set.", false);
+            return;
+        }
+
+        ChatFormatter.StyledText msg = ChatFormatter.of("Homes for " + group.getName() + ":\n").withBold();
+        homes.stream()
+                .sorted(Comparator.comparing(GroupHome::getName))
+                .forEach(home -> {
+                    msg.append("- " + home.getName() + ": ")
+                            .append("x=" + (int) home.getX() + ", y=" + (int) home.getY() + ", z=" + (int) home.getZ() + "\n");
+                });
+        sender.sendMessage(msg.toMessage());
+    }
+
     // --- Territory Extension ---
 
     public void deleteHome(PlayerRef sender, String homeName) {
@@ -829,8 +898,8 @@ public class GroupService {
         Group group = getGroupOrNotify(sender);
         if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_CLAIM)) return null;
 
-        int cx = (int) sender.getTransform().getPosition().getX() >> 4;
-        int cz = (int) sender.getTransform().getPosition().getZ() >> 4;
+        int cx = (int) sender.getTransform().getPosition().getX() >> 5;
+        int cz = (int) sender.getTransform().getPosition().getZ() >> 5;
         UUID world = sender.getWorldUuid();
         return new ChunkInfo(group, cx, cz, world);
     }

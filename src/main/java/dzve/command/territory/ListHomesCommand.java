@@ -1,4 +1,4 @@
-package dzve.command.management;
+package dzve.command.territory;
 
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -11,16 +11,17 @@ import dzve.service.group.GroupService;
 
 import javax.annotation.Nonnull;
 
-public class DeleteGroupCommand extends AbstractPlayerCommand {
+public class ListHomesCommand extends AbstractPlayerCommand {
+
     private final GroupService groupService;
 
-    public DeleteGroupCommand(GroupService groupService) {
-        super("delete", "Delete your group");
+    public ListHomesCommand(GroupService groupService) {
+        super("homeList", "Lists all available homes for your group.");
         this.groupService = groupService;
     }
 
     @Override
-    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
-        groupService.deleteGroup(player);
+    protected void execute(@Nonnull CommandContext commandContext, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef playerRef, @Nonnull World world) {
+        groupService.listHomes(playerRef);
     }
 }

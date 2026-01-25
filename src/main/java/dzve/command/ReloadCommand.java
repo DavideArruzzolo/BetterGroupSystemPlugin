@@ -1,7 +1,8 @@
-package dzve.command.diplomacy;
+package dzve.command;
 
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
@@ -11,16 +12,18 @@ import dzve.service.group.GroupService;
 
 import javax.annotation.Nonnull;
 
-public class ListDiplomacyCommand extends AbstractPlayerCommand {
+public class ReloadCommand extends AbstractPlayerCommand {
+
     private final GroupService groupService;
 
-    public ListDiplomacyCommand(GroupService groupService) {
-        super("diplomacyList", "List your group's diplomatic relations");
+    public ReloadCommand(GroupService groupService) {
+        super("reload", "Reloads the plugin's configuration and data.");
         this.groupService = groupService;
+        setPermissionGroup(GameMode.Creative);
     }
 
     @Override
-    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
-        groupService.listDiplomacy(player);
+    protected void execute(@Nonnull CommandContext commandContext, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef playerRef, @Nonnull World world) {
+        groupService.reload(playerRef);
     }
 }

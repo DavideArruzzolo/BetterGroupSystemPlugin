@@ -1,182 +1,116 @@
-# Piano di Test per i Comandi del Plugin
+# Piano di Test per BetterGroupSystemPlugin
 
-Questo documento descrive i casi di test per i comandi del plugin, ordinati per area funzionale e numero di giocatori
-richiesti.
-
----
-
-## 1. Test Funzionali di Base ("Happy Path")
-
-### 1.1. Gestione del Gruppo
-
-**1 Giocatore (Online):**
-| Comando | Azione da Testare |
-| :--- | :--- |
-| `/creategroup <nome>` | Creare un nuovo gruppo. |
-| `/update` | Modificare le impostazioni del proprio gruppo (es. descrizione, tag). |
-| `/upgrade` | Eseguire l'upgrade del proprio gruppo. |
-| `/info <gruppo>` | Visualizzare le informazioni del proprio gruppo. |
-| `/delete` | Cancellare il proprio gruppo. |
-| `/leave` | Lasciare un gruppo di cui si è l'unico membro (dovrebbe cancellare il gruppo). |
-
-**2+ Giocatori (Online):**
-| Comando | Azione da Testare |
-| :--- | :--- |
-| `/leave` | Un membro (non proprietario) lascia il gruppo. |
-| `/info <gruppo>` | Un giocatore esterno visualizza le informazioni di un gruppo esistente. |
-
-### 1.2. Gestione dei Membri
-
-**1 Giocatore (Online):**
-| Comando | Azione da Testare |
-| :--- | :--- |
-| `/listinvitations` | Controllare la lista di inviti (dovrebbe essere vuota). |
-
-**2+ Giocatori:**
-| Comando | Azione da Testare |
-| :--- | :--- |
-| `/invite <giocatore>` | **Player 1** invita **Player 2** (online) nel gruppo. |
-| `/invite <giocatore>` | **Player 1** invita **Player 2** (offline) nel gruppo. |
-| `/accept <gruppo>` | **Player 2** accetta l'invito e si unisce al gruppo. |
-| `/kick <membro>` | **Player 1** (owner) espelle **Player 2** (membro online). |
-| `/kick <membro>` | **Player 1** (owner) espelle **Player 2** (membro offline). |
-| `/transfer <membro>` | **Player 1** (owner) trasferisce la proprietà del gruppo a **Player 2**. |
-| `/listinvitations` | **Player 2** visualizza l'invito ricevuto da **Player 1**. |
-
-### 1.3. Gestione dei Ruoli
-
-**1 Giocatore (Online):**
-| Comando | Azione da Testare |
-| :--- | :--- |
-| `/create_role <nome>` | Creare un nuovo ruolo nel proprio gruppo. |
-| `/list_roles` | Visualizzare la lista dei ruoli del proprio gruppo. |
-| `/delete_role <ruolo>` | Cancellare un ruolo esistente nel proprio gruppo. |
-| `/update_role <ruolo>` | Aggiorna un ruolo esistente nel proprio gruppo. |
-
-**2+ Giocatori (Online):**
-| Comando | Azione da Testare |
-| :--- | :--- |
-| `/set_role <membro> <ruolo>` | **Player 1** (owner) assegna un ruolo a **Player 2**. |
-
-### 1.4. Gestione Territori e Home
-
-**1 Giocatore (Online):**
-| Comando | Azione da Testare |
-| :--- | :--- |
-| `/claim` | Rivendicare un territorio per il proprio gruppo. |
-| `/unclaim` | Rimuovere la rivendicazione da un territorio del proprio gruppo. |
-| `/sethome` | Impostare la home del gruppo nella posizione attuale. |
-| `/home` | Teletrasportarsi alla home del gruppo. |
-| `/delhome` | Cancellare la home del gruppo. |
-| `/setDefaultHome` | Imposta la default home del player. |
-
-### 1.5. Gestione Economia
-
-**1 Giocatore (Online):**
-| Comando | Azione da Testare |
-| :--- | :--- |
-| `/getbalance` | Controllare il proprio saldo personale. |
-| `/deposit <quantità>` | Depositare denaro nella banca del gruppo. |
-| `/getgroupbalance` | Controllare il saldo della banca del gruppo. |
-| `/withdraw <quantità>` | Prelevare denaro (come owner con pieni permessi). |
-
-**2+ Giocatori (Online):**
-| Comando | Azione da Testare |
-| :--- | :--- |
-| `/withdraw <quantità>` | **Player 2** (membro con permessi limitati) tenta di prelevare (testare successo e fallimento
-in base ai permessi del ruolo). |
-
-### 1.6. Gestione Diplomazia
-
-**2+ Giocatori (Online, in 2 gruppi separati):**
-| Comando | Azione da Testare |
-| :--- | :--- |
-| `/diplomacy <gruppo> <relazione>` | **Player 1** (owner Gruppo A) imposta una relazione (es. `ALLY`) con il **Gruppo B
-**. |
-| `/listdiplomacy` | **Player 1** e **Player 2** visualizzano le relazioni diplomatiche dei rispettivi gruppi. |
+Questo documento descrive i casi di test per i comandi del plugin, ordinati per categoria funzionale e numero di
+giocatori richiesti.
 
 ---
 
-## 2. Test Avanzati (Negativi e Casi Limite)
+## 1. Gestione del Gruppo
 
-### 2.1. Gestione del Gruppo
+### 1.1. Test Individuali (1 Giocatore)
 
-| Priorità | Giocatori | Comando               | Azione da Testare (Scenario Negativo/Limite)                     |
-|:---------|:----------|:----------------------|:-----------------------------------------------------------------|
-| **Alta** | 1         | `/creategroup <nome>` | Tentare di creare un gruppo con un nome già esistente.           |
-| **Alta** | 1         | `/creategroup <nome>` | Tentare di creare un gruppo quando si è già in un altro gruppo.  |
-| Media    | 1         | `/creategroup <nome>` | Usare nomi con caratteri speciali, spazi, o troppo lunghi/corti. |
-| Media    | 1         | `/info <gruppo>`      | Richiedere info per un gruppo che non esiste.                    |
+| Comando                         | Permesso Richiesto      | Azione da Testare (Happy Path)                                                     | Azioni da Testare (Casi Limite e Negativi)                                                                                                                                          |
+|:--------------------------------|:------------------------|:-----------------------------------------------------------------------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/group create <nome> <tag>`    | Nessuno                 | Creare un nuovo gruppo con nome e tag validi.                                      | 1. Tentare di creare un gruppo quando si è già membri di un altro.<br>2. Usare nomi/tag già esistenti.<br>3. Usare nomi/tag con caratteri non validi, troppo lunghi o troppo corti. |
+| `/group update <tipo> <valore>` | `CAN_MANAGE_GROUP_INFO` | Modificare descrizione, tag, e colore del proprio gruppo.                          | 1. Tentare di usare un colore non valido (es. non esadecimale).<br>2. Tentare di impostare un nome/tag già in uso.                                                                  |
+| `/group info`                   | Nessuno                 | Visualizzare le informazioni del proprio gruppo.                                   | 1. Eseguire il comando senza essere in un gruppo (dovrebbe notificarlo).                                                                                                            |
+| `/group leave`                  | Nessuno                 | Lasciare un gruppo di cui si è l'unico membro (il gruppo dovrebbe essere sciolto). | -                                                                                                                                                                                   |
+| `/group delete`                 | Leader                  | Cancellare il proprio gruppo.                                                      | -                                                                                                                                                                                   |
+| `/group upgrade`                | `CAN_UPGRADE_GUILD`     | Eseguire l'upgrade del proprio gruppo (solo Gilde).                                | 1. Tentare l'upgrade senza fondi sufficienti.<br>2. Tentare l'upgrade al livello massimo.                                                                                           |
 
-### 2.2. Gestione dei Membri
+### 1.2. Test di Gruppo (2+ Giocatori)
 
-| Priorità | Giocatori | Comando               | Azione da Testare (Scenario Negativo/Limite)                                                       |
-|:---------|:----------|:----------------------|:---------------------------------------------------------------------------------------------------|
-| **Alta** | 2+        | `/invite <giocatore>` | **Player 2** (membro senza permessi) tenta di invitare **Player 3**.                               |
-| **Alta** | 2         | `/invite <giocatore>` | **Player 1** tenta di invitare **Player 2** quando il gruppo è al massimo della capienza.          |
-| **Alta** | 2         | `/invite <giocatore>` | **Player 1** tenta di invitare **Player 2** che è già nel gruppo.                                  |
-| **Alta** | 2         | `/kick <membro>`      | **Player 2** (membro senza permessi) tenta di espellere **Player 1** (owner).                      |
-| **Alta** | 2         | `/transfer <membro>`  | **Player 2** (membro senza permessi) tenta di trasferire la proprietà a **Player 1**.              |
-| Media    | 2         | `/accept <gruppo>`    | **Player 2** tenta di accettare un invito per un gruppo che non esiste o che ha ritirato l'invito. |
-| Media    | 1         | `/invite <giocatore>` | Tentare di invitare un giocatore inesistente.                                                      |
-| Media    | 1         | `/kick <membro>`      | Tentare di espellere un membro inesistente.                                                        |
-
-### 2.3. Gestione dei Ruoli
-
-| Priorità | Giocatori | Comando                      | Azione da Testare (Scenario Negativo/Limite)                                          |
-|:---------|:----------|:-----------------------------|:--------------------------------------------------------------------------------------|
-| **Alta** | 2         | `/create_role <nome>`        | **Player 2** (membro senza permessi) tenta di creare un ruolo.                        |
-| **Alta** | 1         | `/create_role <nome>`        | Tentare di creare un ruolo con un nome già esistente.                                 |
-| **Alta** | 2         | `/set_role <membro> <ruolo>` | **Player 2** (membro senza permessi) tenta di assegnare un ruolo a **Player 1**.      |
-| Media    | 1         | `/delete_role <ruolo>`       | Tentare di cancellare un ruolo predefinito (es. 'owner', 'member') se non consentito. |
-| Media    | 1         | `/delete_role <ruolo>`       | Tentare di cancellare un ruolo a cui sono assegnati dei membri.                       |
-| Media    | 1         | `/set_role <membro> <ruolo>` | Assegnare un ruolo a un membro inesistente o usare un ruolo inesistente.              |
-
-### 2.4. Gestione Territori e Home
-
-| Priorità | Giocatori | Comando    | Azione da Testare (Scenario Negativo/Limite)                                                |
-|:---------|:----------|:-----------|:--------------------------------------------------------------------------------------------|
-| **Alta** | 1         | `/claim`   | Tentare di rivendicare un territorio già occupato da un altro gruppo.                       |
-| **Alta** | 1         | `/claim`   | Tentare di rivendicare più territori del limite consentito dall'upgrade del gruppo.         |
-| **Alta** | 2         | `/unclaim` | **Player 2** (membro senza permessi) tenta di annullare la rivendicazione di un territorio. |
-| Media    | 1         | `/home`    | Usare `/home` quando non è stata impostata.                                                 |
-| Media    | 1         | `/delhome` | Usare `/delhome` quando non è stata impostata.                                              |
-
-### 2.5. Gestione Economia
-
-| Priorità | Giocatori | Comando                | Azione da Testare (Scenario Negativo/Limite)                    |
-|:---------|:----------|:-----------------------|:----------------------------------------------------------------|
-| **Alta** | 1         | `/deposit <quantità>`  | Depositare un importo negativo, non numerico o zero.            |
-| **Alta** | 1         | `/deposit <quantità>`  | Depositare più denaro di quanto si possiede.                    |
-| **Alta** | 1         | `/withdraw <quantità>` | Prelevare un importo negativo, non numerico o zero.             |
-| **Alta** | 1         | `/withdraw <quantità>` | Prelevare più denaro di quanto presente nella banca del gruppo. |
-| **Alta** | 2         | `/withdraw <quantità>` | **Player 2** (membro senza permessi) tenta di prelevare denaro. |
-
-### 2.6. Gestione Diplomazia
-
-| Priorità | Giocatori | Comando          | Azione da Testare (Scenario Negativo/Limite)                                                         |
-|:---------|:----------|:-----------------|:-----------------------------------------------------------------------------------------------------|
-| **Alta** | 2+        | `/diplomacy ...` | **Player 2** (membro senza permessi in Gruppo A) tenta di modificare la diplomazia con **Gruppo B**. |
-| Media    | 2         | `/diplomacy ...` | Impostare una relazione con un gruppo inesistente.                                                   |
-| Media    | 2         | `/diplomacy ...` | Impostare una relazione diplomatica non valida (es. `/diplomacy GruppoB AMICI`).                     |
+| Comando                    | Permesso Richiesto | Giocatori | Azione da Testare (Happy Path)                                          | Azioni da Testare (Casi Limite e Negativi)                                                                                 |
+|:---------------------------|:-------------------|:----------|:------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------------------------------|
+| `/group leave`             | Nessuno            | P2        | Un membro (non leader) lascia il gruppo.                                | 1. **P1 (Leader)** tenta di lasciare un gruppo con altri membri (dovrebbe fallire e chiedere di trasferire la leadership). |
+| `/group info <nome>`       | Nessuno            | P2        | Un giocatore esterno visualizza le informazioni di un gruppo esistente. | 1. Richiedere info per un gruppo che non esiste.                                                                           |
+| `/group transfer <membro>` | Leader             | P1 -> P2  | **P1 (Leader)** trasferisce la proprietà del gruppo a **P2**.           | 1. **P2 (Membro)** tenta di trasferire la proprietà a **P1**.                                                              |
 
 ---
 
-## 3. Test di Regressione
+## 2. Gestione dei Membri
 
-I test di regressione non sono un elenco di nuovi casi, ma una **strategia**. Dopo ogni modifica significativa al
-codice, è fondamentale rieseguire una selezione dei test più critici (quelli con priorità **Alta**) per assicurarsi che
-le nuove modifiche non abbiano introdotto bug in funzionalità che prima erano stabili.
+### 2.1. Test Individuali (1 Giocatore)
 
-**Strategia di Regressione (da eseguire dopo ogni modifica):**
+| Comando              | Permesso Richiesto | Azione da Testare (Happy Path)                                                     | Azioni da Testare (Casi Limite e Negativi) |
+|:---------------------|:-------------------|:-----------------------------------------------------------------------------------|:-------------------------------------------|
+| `/group invitations` | Nessuno            | Controllare la lista di inviti (dovrebbe essere vuota o mostrare inviti pendenti). | -                                          |
 
-1. **Creazione e cancellazione gruppo:** Eseguire `/creategroup` e `/delete`.
-2. **Invito e accettazione:** Eseguire `/invite` e `/accept`.
-3. **Kick membro:** Eseguire `/kick`.
-4. **Claim territorio:** Eseguire `/claim` e `/unclaim`.
-5. **Deposito e prelievo:** Eseguire `/deposit` e `/withdraw` (come owner).
-6. **Verifica Permessi Critici:** Verificare che un membro senza permessi **non possa** eseguire comandi come `/kick`,
-   `/unclaim`, `/withdraw`.
+### 2.2. Test di Gruppo (2+ Giocatori)
 
-Questa suite di regressione va eseguita dopo ogni aggiornamento del plugin per garantire la stabilità delle funzioni
-principali.
+| Comando                     | Permesso Richiesto | Giocatori | Azione da Testare (Happy Path)                      | Azioni da Testare (Casi Limite e Negativi)                                                                                                                                                                            |
+|:----------------------------|:-------------------|:----------|:----------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/group invite <giocatore>` | `CAN_INVITE`       | P1 -> P2  | **P1** invita **P2** (online e offline) nel gruppo. | 1. **P2 (senza permesso)** tenta di invitare **P3**.<br>2. **P1** invita **P2** quando il gruppo è pieno.<br>3. **P1** invita **P2** che è già nel gruppo.<br>4. **P1** invita un giocatore inesistente.              |
+| `/group accept <gruppo>`    | Nessuno            | P2        | **P2** accetta l'invito e si unisce al gruppo.      | 1. **P2** tenta di accettare un invito per un gruppo inesistente o che ha ritirato l'invito.                                                                                                                          |
+| `/group refuse <gruppo>`    | Nessuno            | P2        | **P2** rifiuta un invito.                           | -                                                                                                                                                                                                                     |
+| `/group kick <membro>`      | `CAN_KICK`         | P1 -> P2  | **P1** espelle **P2** (membro online e offline).    | 1. **P2 (senza permesso)** tenta di espellere **P1**.<br>2. **P1** tenta di espellere un membro con un ruolo di priorità superiore o uguale (se non è leader).<br>3. **P1** tenta di espellere un membro inesistente. |
+
+---
+
+## 3. Gestione dei Ruoli e Permessi
+
+### 3.1. Test Individuali (1 Giocatore)
+
+| Comando                      | Permesso Richiesto | Azione da Testare (Happy Path)                      | Azioni da Testare (Casi Limite e Negativi)                                                                                 |
+|:-----------------------------|:-------------------|:----------------------------------------------------|:---------------------------------------------------------------------------------------------------------------------------|
+| `/group role create <nome>`  | `CAN_MANAGE_ROLES` | Creare un nuovo ruolo.                              | 1. Tentare di creare un ruolo con un nome già esistente.                                                                   |
+| `/group role delete <ruolo>` | `CAN_MANAGE_ROLES` | Cancellare un ruolo personalizzato.                 | 1. Tentare di cancellare un ruolo di default.<br>2. Tentare di cancellare un ruolo a cui sono ancora assegnati dei membri. |
+| `/group role update <ruolo>` | `CAN_MANAGE_ROLES` | Aggiungere/rimuovere permessi da un ruolo.          | 1. Tentare di modificare un ruolo di default (se non permesso).                                                            |
+| `/group role list`           | Nessuno            | Visualizzare la lista dei ruoli del proprio gruppo. | -                                                                                                                          |
+
+### 3.2. Test di Gruppo (2+ Giocatori)
+
+| Comando                   | Permesso Richiesto   | Giocatori | Azione da Testare (Happy Path) | Azioni da Testare (Casi Limite e Negativi)                                                                                                           |
+|:--------------------------|:---------------------|:----------|:-------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/group promote <membro>` | `CAN_PROMOTE_DEMOTE` | P1 -> P2  | **P1** promuove **P2**.        | 1. **P2 (senza permesso)** tenta di promuovere **P1**.<br>2. **P1** tenta di promuovere **P2** a un ruolo di priorità uguale o superiore al proprio. |
+| `/group demote <membro>`  | `CAN_PROMOTE_DEMOTE` | P1 -> P2  | **P1** retrocede **P2**.       | 1. **P2 (senza permesso)** tenta di retrocedere **P1**.                                                                                              |
+
+---
+
+## 4. Gestione Territori e Home
+
+### 4.1. Test Individuali (1 Giocatore)
+
+| Comando                    | Permesso Richiesto  | Azione da Testare (Happy Path)                              | Azioni da Testare (Casi Limite e Negativi)                                                                |
+|:---------------------------|:--------------------|:------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------|
+| `/group claim`             | `CAN_MANAGE_CLAIMS` | Rivendicare un chunk libero.                                | 1. Tentare di claimare un chunk già occupato.<br>2. Tentare di superare il limite di claim del gruppo.    |
+| `/group unclaim`           | `CAN_MANAGE_CLAIMS` | Rimuovere la rivendicazione da un chunk del proprio gruppo. | 1. Tentare di unclaimare un chunk che non appartiene al proprio gruppo.                                   |
+| `/group sethome <nome>`    | `CAN_MANAGE_HOMES`  | Impostare una home in un chunk claimato.                    | 1. Tentare di impostare una home fuori dal territorio claimato.<br>2. Superare il numero massimo di home. |
+| `/group home <nome>`       | `CAN_TELEPORT_HOME` | Teletrasportarsi a una home esistente.                      | 1. Usare `/group home` quando nessuna home è impostata.                                                   |
+| `/group delhome <nome>`    | `CAN_MANAGE_HOMES`  | Cancellare una home.                                        | 1. Tentare di cancellare una home inesistente.                                                            |
+| `/group setdefault <nome>` | Nessuno             | Impostare una home di default per il teletrasporto.         | -                                                                                                         |
+
+### 4.2. Test di Gruppo (2+ Giocatori)
+
+| Comando               | Permesso Richiesto      | Giocatori | Azione da Testare (Happy Path)                                                       | Azioni da Testare (Casi Limite e Negativi)                                                                                                                            |
+|:----------------------|:------------------------|:----------|:-------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Interazione nel claim | `CAN_INTERACT_IN_CLAIM` | P2        | **P2 (membro con permesso)** interagisce (piazza/rompe blocchi) nel claim di **P1**. | 1. **P3 (esterno)** tenta di interagire nel claim di **P1** (dovrebbe essere bloccato).<br>2. **P2 (membro senza permesso)** tenta di interagire nel claim di **P1**. |
+
+---
+
+## 5. Gestione Economia
+
+### 5.1. Test Individuali (1 Giocatore)
+
+| Comando                      | Permesso Richiesto | Azione da Testare (Happy Path)               | Azioni da Testare (Casi Limite e Negativi)                                                                        |
+|:-----------------------------|:-------------------|:---------------------------------------------|:------------------------------------------------------------------------------------------------------------------|
+| `/group deposit <quantità>`  | Nessuno            | Depositare denaro nella banca del gruppo.    | 1. Depositare un importo negativo, zero o non numerico.<br>2. Depositare più denaro di quanto si possiede.        |
+| `/group withdraw <quantità>` | `CAN_MANAGE_BANK`  | Prelevare denaro dalla banca del gruppo.     | 1. Prelevare un importo negativo, zero o non numerico.<br>2. Prelevare più denaro di quanto presente nella banca. |
+| `/group balance`             | Nessuno            | Controllare il saldo della banca del gruppo. | -                                                                                                                 |
+
+### 5.2. Test di Gruppo (2+ Giocatori)
+
+| Comando                      | Permesso Richiesto | Giocatori | Azione da Testare (Happy Path)               | Azioni da Testare (Casi Limite e Negativi)                   |
+|:-----------------------------|:-------------------|:----------|:---------------------------------------------|:-------------------------------------------------------------|
+| `/group withdraw <quantità>` | `CAN_MANAGE_BANK`  | P2        | **P2 (membro con permesso)** preleva denaro. | 1. **P2 (membro senza permesso)** tenta di prelevare denaro. |
+
+---
+
+## 6. Gestione Diplomazia
+
+### 6.1. Test di Gruppo (2+ Giocatori in 2 gruppi separati)
+
+| Comando                              | Permesso Richiesto     | Giocatori                 | Azione da Testare (Happy Path)                                                | Azioni da Testare (Casi Limite e Negativi)                                                                                                                              |
+|:-------------------------------------|:-----------------------|:--------------------------|:------------------------------------------------------------------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/group diplomacy <gruppo> <status>` | `CAN_MANAGE_DIPLOMACY` | P1 (Gruppo A) -> Gruppo B | **P1** imposta una relazione (es. `ENEMY`) con il **Gruppo B**.               | 1. **P2 (membro senza permesso)** tenta di modificare la diplomazia.<br>2. Impostare una relazione con un gruppo inesistente.<br>3. Impostare una relazione non valida. |
+| `/group diplolist`                   | Nessuno                | P1, P2                    | **P1** e **P2** visualizzano le relazioni diplomatiche dei rispettivi gruppi. | -                                                                                                                                                                       |

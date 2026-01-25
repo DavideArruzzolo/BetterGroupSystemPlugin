@@ -1,4 +1,4 @@
-package dzve.command.member;
+package dzve.command.role;
 
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -15,7 +15,7 @@ public class ListRolesCommand extends AbstractPlayerCommand {
     private final GroupService groupService;
 
     public ListRolesCommand(GroupService groupService) {
-        super("list_roles", "List all roles in the group");
+        super("roleList", "List all roles in the group");
         this.groupService = groupService;
     }
 

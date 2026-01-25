@@ -19,7 +19,7 @@ public class SetHomeCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> name = withRequiredArg("name", "Home name", ArgTypes.STRING);
 
     public SetHomeCommand(GroupService groupService) {
-        super("sethome", "Set a group home");
+        super("createHome", "Set a group home");
         this.groupService = groupService;
     }
 

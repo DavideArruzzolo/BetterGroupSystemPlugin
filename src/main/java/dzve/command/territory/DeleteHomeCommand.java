@@ -19,7 +19,7 @@ public class DeleteHomeCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> name = withRequiredArg("name", "Home name", ArgTypes.STRING);
 
     public DeleteHomeCommand(GroupService groupService) {
-        super("delhome", "Delete a group home");
+        super("removeHome", "Delete a group home");
         this.groupService = groupService;
     }
 

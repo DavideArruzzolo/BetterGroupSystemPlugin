@@ -19,7 +19,7 @@ public class SetDefaultHomeCommand extends AbstractPlayerCommand {
     private final OptionalArg<String> homeName = withOptionalArg("home", "Home name", ArgTypes.STRING);
 
     public SetDefaultHomeCommand(GroupService groupService) {
-        super("setdefault_home", "Set a default home to teleport to");
+        super("setDefaultHome", "Set a default home to teleport to");
         this.groupService = groupService;
     }
 

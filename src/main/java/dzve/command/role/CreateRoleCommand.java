@@ -24,7 +24,7 @@ public class CreateRoleCommand extends AbstractPlayerCommand {
     private final OptionalArg<String> grants = withOptionalArg("grants", "Permissions (space separated)", ArgTypes.STRING);
 
     public CreateRoleCommand(GroupService groupService) {
-        super("create_role", "Create a new custom role");
+        super("createRole", "Create a new custom role");
         this.groupService = groupService;
     }
 
