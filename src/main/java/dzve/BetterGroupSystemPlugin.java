@@ -1,12 +1,18 @@
 package dzve;
 
+import com.hypixel.hytale.event.EventRegistry;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.server.core.event.events.player.PlayerChatEvent;
+import com.hypixel.hytale.server.core.event.events.player.PlayerReadyEvent;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.util.Config;
 import dzve.command.BaseGroupCommand;
+import dzve.command.ChatAllayCommand;
+import dzve.command.ChatGroupCommand;
 import dzve.config.BetterGroupSystemPluginConfig;
-import dzve.listener.GroupTracker;
+import dzve.listener.ChatListener;
+import dzve.listener.MapPlayerListener;
 import dzve.service.group.GroupService;
 import dzve.systems.claim.ClaimAlertSystem;
 import dzve.systems.claim.ClaimProtectionSystems;
@@ -14,17 +20,18 @@ import dzve.systems.claim.PvPProtectionSystem;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 
 @Getter
 public class BetterGroupSystemPlugin extends JavaPlugin {
-    private GroupTracker groupTracker;
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     private static GroupService groupService;
     private final Config<BetterGroupSystemPluginConfig> config;
     @Getter
     private static BetterGroupSystemPlugin instance;
     private BaseGroupCommand baseGroupCommand;
+    private MapPlayerListener mapPlayerListener;
 
     public BetterGroupSystemPlugin(@Nonnull JavaPluginInit init) {
         super(init);
@@ -42,21 +49,24 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
         this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.UseBlockProtectionSystem());
 
         this.getCommandRegistry().registerCommand(baseGroupCommand);
+        this.getCommandRegistry().registerCommand(new ChatGroupCommand(GroupService.getInstance(null)));
+        this.getCommandRegistry().registerCommand(new ChatAllayCommand(GroupService.getInstance(null)));
     }
 
     @Override
     protected void start() {
         this.getEntityStoreRegistry().registerSystem(new ClaimAlertSystem());
         this.getEntityStoreRegistry().registerSystem(new PvPProtectionSystem(config));
-        this.groupTracker = new GroupTracker();
-        this.groupTracker.start();
+        this.mapPlayerListener = new MapPlayerListener(this);
+        EventRegistry eventRegistry = this.getEventRegistry();
+        MapPlayerListener player = this.mapPlayerListener;
+        Objects.requireNonNull(player);
+        eventRegistry.registerGlobal(PlayerReadyEvent.class, player::onPlayerReady);
+        this.getEventRegistry().registerGlobal(PlayerChatEvent.class, ChatListener::onPlayerChat);
     }
 
     @Override
     protected void shutdown() {
-        if (this.groupTracker != null) {
-            this.groupTracker.stop();
-        }
         groupService.shutdown();
         LOGGER.atInfo().log("Shutdown up plugin " + this.getName());
     }
@@ -78,9 +88,5 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
         } catch (Exception e) {
             LOGGER.atSevere().log("Failed to load configuration: " + e.getMessage());
         }
-    }
-
-    public GroupTracker getTracker() {
-        return this.groupTracker;
     }
 }

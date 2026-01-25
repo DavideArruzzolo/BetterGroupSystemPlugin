@@ -57,7 +57,13 @@ public abstract class Group {
         this.name = name;
         this.tag = tag;
         this.description = description;
-        this.color = color;
+        if (color == null) {
+            Random random = new Random();
+            int nextInt = random.nextInt(0xffffff + 1);
+            this.color = String.format("#%06x", nextInt);
+        } else {
+            this.color = color;
+        }
         this.leaderId = player.getUuid();
 
         addMember(player, roles.stream().findFirst().orElseThrow().getId());

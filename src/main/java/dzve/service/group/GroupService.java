@@ -12,6 +12,7 @@ import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.teleport.Teleport;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dzve.config.BetterGroupSystemPluginConfig;
@@ -649,7 +650,7 @@ public class GroupService {
                 ChatFormatter.of("#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#\n")
                         .append("Name: ").append(group.getName() + "\n").withBold()
                         .append("Tag: ").append(group.getTag() + "\n").withBold()
-                        .append("Color: ").append(group.getColor() != null ? group.getColor() : "No color set" + "\n").withBold().withColor(groupColor)
+                        .append("Color: ").append(group.getColor() != null ? group.getColor() + "\n" : "No color set" + "\n").withBold().withColor(groupColor)
                         .append("Description: ").append(group.getDescription() != null ? group.getDescription() : "No description set" + "\n").withBold()
                         .append("\n")
                         .append("Leader: ").append(leaderName + "\n").withBold()
@@ -704,7 +705,7 @@ public class GroupService {
                     msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n")
                             .append("Name: ").append(group.getName() + "\n").withBold()
                             .append("Tag: ").append(group.getTag() + "\n").withBold()
-                            .append("Color: ").append(group.getColor() != null ? group.getColor() : "No color set" + "\n").withBold().withColor(groupColor)
+                            .append("Color: ").append(group.getColor() != null ? group.getColor() + "\n" : "No color set" + "\n").withBold().withColor(groupColor)
                             .append("Description: ").append(group.getDescription() != null ? group.getDescription() : "No description set" + "\n").withBold()
                             .append("\n")
                             .append("Leader: ").append(leaderName + "\n").withBold()
@@ -866,9 +867,6 @@ public class GroupService {
 
         Group group = getGroupOrNotify(sender);
         if (group == null) return;
-
-        // TODO: Integrare check: if (EconomyService.remove(sender, amount)) ...
-
         group.deposit(amount, sender.getUuid());
         if (group instanceof Guild guild) {
             guild.getMoneyContributions().merge(sender.getUuid(), amount, Double::sum);
@@ -958,11 +956,11 @@ public class GroupService {
         return false;
     }
 
-    private void notify(PlayerRef player, String msg) {
+    public void notify(PlayerRef player, String msg) {
         notify(player, msg, true);
     }
 
-    private void notify(PlayerRef player, String msg, boolean isError) {
+    public void notify(PlayerRef player, String msg, boolean isError) {
         notificationService.sendNotification(player.getUuid(), msg, isError ? Danger : Success); // Simplification
     }
 
@@ -1019,12 +1017,72 @@ public class GroupService {
         if (list == null) return null;
         try {
             return list.stream()
-                    .map(s -> s.replace(",", "").trim())
+                    .map(s -> s.replace("\"", "").trim().replace(",", ""))
                     .map(s -> Permission.valueOf(s.toUpperCase().replace(".", "_")))
                     .collect(Collectors.toSet());
         } catch (IllegalArgumentException e) {
+            LOGGER.atWarning().log("Invalid permission encountered: " + e.getMessage());
             return null;
         }
+    }
+
+    public void sendGroupMessage(PlayerRef sender, String[] message) {
+        Group group = getGroupOrNotify(sender);
+        if (group == null) return;
+
+        // Remove first element (command name) from message array
+        String[] messageContent = message.length > 1 ? Arrays.copyOfRange(message, 1, message.length) : new String[0];
+
+        ChatFormatter.StyledText styledMessage = ChatFormatter.of("[GroupChat]")
+                .withColor(Color.decode(group.getColor()))
+                .withBold()
+                .withMonospace()
+                .append(sender.getUsername() + ": ")
+                .append(String.join(" ", messageContent));
+
+        Universe.get().getPlayers().stream()
+                .filter(player -> group.getMembers().stream()
+                        .anyMatch(member -> member.getPlayerId().equals(player.getUuid())))
+                .forEach(player -> player.sendMessage(styledMessage.toMessage()));
+    }
+
+    public void sendAllyMessage(PlayerRef sender, String[] message) {
+        Group group = getGroupOrNotify(sender);
+        if (group == null) return;
+
+        // Remove first element (command name) from message array
+        String[] messageContent = message.length > 1 ? Arrays.copyOfRange(message, 1, message.length) : new String[0];
+
+        ChatFormatter.StyledText styledMessage = ChatFormatter.of("[AllyChat]")
+                .withBold()
+                .withMonospace()
+                .withColor(Color.GREEN)
+                .append("[")
+                .withColor(Color.GRAY)
+                .append(group.getTag())
+                .withColor(Color.decode(group.getColor()))
+                .append("] ")
+                .withColor(Color.GRAY)
+                .append(sender.getUsername() + ": ")
+                .append(String.join(" ", messageContent));
+
+        Set<UUID> allRecipients = new HashSet<>();
+
+        group.getMembers().stream()
+                .map(GroupMember::getPlayerId)
+                .forEach(allRecipients::add);
+
+        group.getDiplomaticRelations().entrySet().stream()
+                .filter(entry -> entry.getValue() == DiplomacyStatus.ALLY)
+                .map(entry -> groups.get(entry.getKey()))
+                .filter(Objects::nonNull)
+                .flatMap(allyGroup -> allyGroup.getMembers().stream())
+                .map(GroupMember::getPlayerId)
+                .forEach(allRecipients::add);
+
+        Universe.get().getPlayers().stream()
+                .filter(player -> allRecipients.contains(player.getUuid()))
+                .forEach(player -> player.sendMessage(styledMessage.toMessage()));
     }
 
     private record GroupData(Map<UUID, Group> groups) {

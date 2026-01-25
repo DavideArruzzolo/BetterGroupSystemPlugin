@@ -13,7 +13,7 @@ import static java.util.Map.entry;
 
 @ToString
 public final class ChatFormatter {
-    private static final Pattern TAG_PATTERN = Pattern.compile("<(/?)([\\w]+)(?::([^>]+))?>");
+    private static final Pattern TAG_PATTERN = Pattern.compile("<(/?)(\\w+)(?::([^>]+))?>");
     private static final Map<String, Color> NAMED_COLORS = Map.ofEntries(
             entry("black", new Color(0, 0, 0)),
             entry("dark_blue", new Color(0, 0, 170)),
@@ -133,7 +133,7 @@ public final class ChatFormatter {
                 return new Color(rgb[0] & 0xFF, rgb[1] & 0xFF, rgb[2] & 0xFF);
             }
         } catch (Exception e) {
-
+            throw new RuntimeException(e);
         }
         return null;
     }
