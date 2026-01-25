@@ -7,6 +7,8 @@ import com.hypixel.hytale.server.core.util.Config;
 import dzve.command.BaseGroupCommand;
 import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.service.group.GroupService;
+import dzve.systems.claim.ClaimAlertSystem;
+import dzve.systems.claim.ClaimProtectionSystems;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -35,6 +37,10 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
         LOGGER.atInfo().log("Plugin mode: " + config.get().getPluginMode());
         groupService = GroupService.getInstance(config.get());
         baseGroupCommand = new BaseGroupCommand(config.get());
+        this.getEntityStoreRegistry().registerSystem(new ClaimAlertSystem());
+        this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.PlaceBlockProtectionSystem());
+        this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.BreakBlockProtectionSystem());
+        this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.UseBlockProtectionSystem());
         this.getCommandRegistry().registerCommand(baseGroupCommand);
     }
 

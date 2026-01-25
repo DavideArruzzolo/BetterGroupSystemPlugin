@@ -45,7 +45,8 @@ public class BetterGroupSystemPluginConfig {
                     .append(new KeyedCodec<>("LatePayAction", STRING), (cfg, val, info) -> cfg.setLatePayAction(val), (cfg, info) -> cfg.getLatePayAction()).add()
                     .append(new KeyedCodec<>("LatePayGracePeriod", DOUBLE), (cfg, val, info) -> cfg.setLatePayGracePeriod(val), (cfg, info) -> cfg.getLatePayGracePeriod()).add()
                     .append(new KeyedCodec<>("MaxHome", INTEGER), (cfg, val, info) -> cfg.setMaxHome(val), (cfg, info) -> cfg.getMaxHome()).add()
-                    .append(new KeyedCodec<>("ChatMessageMaxLength", INTEGER), (cfg, val, info) -> cfg.setChatMessageMaxLength(val), (cfg, info) -> cfg.getChatMessageMaxLength()).add().build();
+                    .append(new KeyedCodec<>("ChatMessageMaxLength", INTEGER), (cfg, val, info) -> cfg.setChatMessageMaxLength(val), (cfg, info) -> cfg.getChatMessageMaxLength()).add()
+                    .append(new KeyedCodec<>("PvpEnabled", BOOLEAN), (cfg, val, info) -> cfg.setPvpEnabled(val), (cfg, info) -> cfg.isPvpEnabled()).add().build();
 
     private static BetterGroupSystemPluginConfig instance;
 
@@ -81,6 +82,7 @@ public class BetterGroupSystemPluginConfig {
     private double latePayGracePeriod = 28800;
     private int maxHome = 5;
     private int chatMessageMaxLength = 40;
+    private boolean pvpEnabled = true;
 
     public BetterGroupSystemPluginConfig() {
     }

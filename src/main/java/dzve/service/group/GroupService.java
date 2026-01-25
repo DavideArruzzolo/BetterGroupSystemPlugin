@@ -925,7 +925,7 @@ public class GroupService {
     }
 
     @Nullable
-    private Group getGroupOrNotify(PlayerRef p) {
+    public Group getGroupOrNotify(PlayerRef p) {
         UUID gid = playerGroupMap.get(p.getUuid());
         if (gid == null) notify(p, "You are not in a group.");
         return gid != null ? groups.get(gid) : null;

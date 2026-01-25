@@ -1,9 +1,6 @@
 package dzve.systems.claim;
 
-import com.hypixel.hytale.component.ArchetypeChunk;
-import com.hypixel.hytale.component.CommandBuffer;
-import com.hypixel.hytale.component.Ref;
-import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.component.*;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.server.core.Message;
@@ -27,7 +24,7 @@ public class ClaimAlertSystem extends EntityTickingSystem<EntityStore> {
 
     @Override
     public Query<EntityStore> getQuery() {
-        return PlayerRef.getComponentType();
+        return Archetype.of(PlayerRef.getComponentType());
     }
 
     @Override
@@ -43,8 +40,8 @@ public class ClaimAlertSystem extends EntityTickingSystem<EntityStore> {
 
             int blockX = (int) playerRef.getTransform().getPosition().getX();
             int blockZ = (int) playerRef.getTransform().getPosition().getZ();
-            int chunkX = blockX >> 4;
-            int chunkZ = blockZ >> 4;
+            int chunkX = blockX >> 5;
+            int chunkZ = blockZ >> 5;
             String worldName = player.getWorld() != null ? player.getWorld().getName() : null;
 
             Group group = GroupService.getInstance(null).getGroupByChunk(worldName, chunkX, chunkZ);
