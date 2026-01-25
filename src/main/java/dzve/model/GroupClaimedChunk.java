@@ -14,9 +14,9 @@ public class GroupClaimedChunk {
     private UUID id;
     private int chunkX;
     private int chunkZ;
-    private UUID world;
+    private String world;
 
-    public GroupClaimedChunk(int chunkX, int chunkZ, UUID world) {
+    public GroupClaimedChunk(int chunkX, int chunkZ, String world) {
         this.id = UUID.randomUUID();
         this.chunkX = chunkX;
         this.chunkZ = chunkZ;

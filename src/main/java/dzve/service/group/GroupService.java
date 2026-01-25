@@ -326,7 +326,7 @@ public class GroupService {
         notify(sender, "Member kicked.", false);
     }
 
-    public void setHome(PlayerRef sender, String name) {
+    public void setHome(PlayerRef sender, String name, World world) {
         Group group = getGroupOrNotify(sender);
         if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
 
@@ -343,7 +343,7 @@ public class GroupService {
 
         int cx = (int) sender.getTransform().getPosition().getX() >> 5;
         int cz = (int) sender.getTransform().getPosition().getZ() >> 5;
-        if (!group.isChunkClaimed(cx, cz, sender.getWorldUuid())) {
+        if (!group.isChunkClaimed(cx, cz, world.getName())) {
             notify(sender, "Must be in claimed land.");
             return;
         }
@@ -362,7 +362,8 @@ public class GroupService {
             notify(sender, "Max roles reached.");
             return;
         }
-        if (getRoleByName(group, name) != null) {
+        GroupRole existingRole = getRoleByName(group, name);
+        if (existingRole != null && !existingRole.isDefault()) {
             notify(sender, "Role exists.");
             return;
         }
@@ -382,8 +383,12 @@ public class GroupService {
         if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_ROLE)) return;
 
         GroupRole role = getRoleByName(group, name);
-        if (role == null || role.isDefault()) {
-            notify(sender, "Invalid role.");
+        if (role == null) {
+            notify(sender, "Role not found.");
+            return;
+        }
+        if (role.isDefault()) {
+            notify(sender, "Cannot delete default role.");
             return;
         }
         if (group.getMembers().stream().anyMatch(m -> m.getRoleId().equals(role.getId()))) {
@@ -400,8 +405,12 @@ public class GroupService {
         if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_ROLE)) return;
 
         GroupRole role = getRoleByName(group, name);
-        if (role == null || role.isDefault()) {
-            notify(sender, "Cannot edit this role.");
+        if (role == null) {
+            notify(sender, "Role not found.");
+            return;
+        }
+        if (role.isDefault()) {
+            notify(sender, "Cannot edit default role.");
             return;
         }
 
@@ -451,11 +460,11 @@ public class GroupService {
 
     /* --- IV. Territory & V. Economy --- */
 
-    public void claimChunk(PlayerRef sender) {
-        ChunkInfo chunkInfo = getChunkInfo(sender);
+    public void claimChunk(PlayerRef sender, World world) {
+        ChunkInfo chunkInfo = getChunkInfo(sender, world);
         if (chunkInfo == null) return;
 
-        boolean taken = groups.values().stream().anyMatch(g -> g.isChunkClaimed(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
+        boolean taken = groups.values().stream().anyMatch(g -> g.isChunkClaimed(chunkInfo.cx, chunkInfo.cz, world.getName()));
         if (taken) {
             notify(sender, "Chunk already claimed.");
             return;
@@ -534,16 +543,16 @@ public class GroupService {
         }
     }
 
-    public void unclaimChunk(PlayerRef sender) {
-        ChunkInfo chunkInfo = getChunkInfo(sender);
+    public void unclaimChunk(PlayerRef sender, World world) {
+        ChunkInfo chunkInfo = getChunkInfo(sender, world);
         if (chunkInfo == null) return;
 
-        if (!chunkInfo.group.isChunkClaimed(chunkInfo.cx, chunkInfo.cz, chunkInfo.world)) {
+        if (!chunkInfo.group.isChunkClaimed(chunkInfo.cx, chunkInfo.cz, world.getName())) {
             notify(sender, "This land is not claimed by your group.");
             return;
         }
 
-        chunkInfo.group.removeClaim(chunkInfo.cx, chunkInfo.cz, chunkInfo.world);
+        chunkInfo.group.removeClaim(chunkInfo.cx, chunkInfo.cz, world.getName());
         saveGroups();
         notify(sender, "Land unclaimed.", false);
     }
@@ -894,14 +903,13 @@ public class GroupService {
     }
 
     @Nullable
-    private ChunkInfo getChunkInfo(PlayerRef sender) {
+    private ChunkInfo getChunkInfo(PlayerRef sender, World world) {
         Group group = getGroupOrNotify(sender);
         if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_CLAIM)) return null;
 
         int cx = (int) sender.getTransform().getPosition().getX() >> 5;
         int cz = (int) sender.getTransform().getPosition().getZ() >> 5;
-        UUID world = sender.getWorldUuid();
-        return new ChunkInfo(group, cx, cz, world);
+        return new ChunkInfo(group, cx, cz, world.getName());
     }
 
     // --- Helpers (Optimization) ---
@@ -968,13 +976,17 @@ public class GroupService {
     }
 
     private GroupRole getMemberRole(Group g, UUID pid) {
-        return g.getRoles().stream().filter(r -> r.getId().equals(g.getMember(pid).getRoleId())).findFirst().orElse(null);
+        GroupMember member = g.getMember(pid);
+        if (member == null) return null;
+        return g.getRoles().stream().filter(r -> r.getId().equals(member.getRoleId())).findFirst().orElse(null);
     }
 
     private boolean canModify(Group g, UUID actor, UUID target) {
         if (g.isLeader(actor)) return true;
         if (g.isLeader(target)) return false;
-        return getMemberRole(g, actor).getPriority() > getMemberRole(g, target).getPriority();
+        GroupRole actorRole = getMemberRole(g, actor);
+        GroupRole targetRole = getMemberRole(g, target);
+        return actorRole != null && targetRole != null && actorRole.getPriority() > targetRole.getPriority();
     }
 
     private void modifyRoles(Group g, Consumer<Set<GroupRole>> modifier) {
@@ -999,6 +1011,15 @@ public class GroupService {
     private record GroupData(Map<UUID, Group> groups) {
     }
 
-    private record ChunkInfo(Group group, int cx, int cz, UUID world) {
+    public Group getGroupByChunk(String worldName, int chunkX, int chunkZ) {
+        for (Group group : groups.values()) {
+            if (group.isChunkClaimed(chunkX, chunkZ, worldName)) {
+                return group;
+            }
+        }
+        return null;
+    }
+
+    private record ChunkInfo(Group group, int cx, int cz, String world) {
     }
 }

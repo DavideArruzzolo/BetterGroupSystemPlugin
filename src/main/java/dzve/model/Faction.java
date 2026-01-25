@@ -33,6 +33,9 @@ public class Faction extends Group {
     @Builder.Default
     private boolean raidable = false;
 
+    @Builder.Default
+    private long lastRaidNotificationTimestamp = 0;
+
     public Faction(String name, String tag, String description, String color, PlayerRef player) {
         super(name, tag, description, color, player);
     }
@@ -96,7 +99,7 @@ public class Faction extends Group {
     }
 
     private void updateRaidableStatus() {
-        this.raidable = totalPower < 0;
+        this.raidable = getClaims().size() > getMaxClaims(BetterGroupSystemPluginConfig.getInstance().getClaimRatio());
     }
 
     public void incrementKills() {
@@ -108,7 +111,7 @@ public class Faction extends Group {
     }
 
     public int getMaxClaims(double claimRatio) {
-        return (int) Math.max(0, totalPower * BetterGroupSystemPluginConfig.getInstance().getClaimRatio());
+        return (int) Math.max(0, totalPower * claimRatio);
     }
 
     public double getKillDeathRatio() {

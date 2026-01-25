@@ -21,6 +21,6 @@ public class UnclaimChunkCommand extends AbstractPlayerCommand {
 
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
-        groupService.unclaimChunk(player);
+        groupService.unclaimChunk(player, world);
     }
 }

@@ -190,18 +190,25 @@ public abstract class Group {
         claims.add(claim);
     }
 
-    public void removeClaim(int chunkX, int chunkZ, UUID world) {
+    public void removeClaim(int chunkX, int chunkZ, String worldName) {
         claims.removeIf(claim ->
                 claim.getChunkX() == chunkX &&
                         claim.getChunkZ() == chunkZ &&
-                        claim.getWorld().equals(world));
+                        claim.getWorld().equals(UUID.fromString(worldName)));
     }
 
-    public boolean isChunkClaimed(int chunkX, int chunkZ, UUID world) {
+    public boolean isChunkClaimed(int chunkX, int chunkZ, String worldName) {
+        UUID worldId;
+        try {
+            worldId = UUID.fromString(worldName);
+        } catch (IllegalArgumentException e) {
+            // Handle cases where worldName is not a valid UUID if necessary
+            return false;
+        }
         return claims.stream().anyMatch(claim ->
                 claim.getChunkX() == chunkX &&
                         claim.getChunkZ() == chunkZ &&
-                        claim.getWorld().equals(world)
+                        claim.getWorld().equals(worldId)
         );
     }
 }

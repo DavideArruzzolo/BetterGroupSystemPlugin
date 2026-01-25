@@ -18,6 +18,7 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     private static GroupService groupService;
     private final Config<BetterGroupSystemPluginConfig> config;
+    @Getter
     private static BetterGroupSystemPlugin instance;
     private BaseGroupCommand baseGroupCommand;
 
@@ -26,10 +27,6 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
         instance = this;
         this.config = this.withConfig("Config", BetterGroupSystemPluginConfig.CODEC);
         loadConfig();
-    }
-
-    public static BetterGroupSystemPlugin getInstance() {
-        return instance;
     }
 
     @Override
