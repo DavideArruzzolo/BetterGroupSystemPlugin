@@ -47,25 +47,23 @@ public class GroupService {
     private static final Pattern NAME_PATTERN = Pattern.compile("^[\\p{L}\\p{N}_]+$");
     private static final Pattern HEX_PATTERN = Pattern.compile("^#[0-9a-fA-F]{6}$");
     private static BetterGroupSystemPluginConfig config = null;
-
-    public static BetterGroupSystemPluginConfig getConfig() {
-        if (config == null) {
-            throw new IllegalStateException("GroupService config not initialized. Please ensure getInstance(config) is called before using the service.");
-        }
-        return config;
-    }
-
     private final JsonStorage<GroupData> storage;
     private final Map<UUID, Group> groups = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> playerGroupMap = new ConcurrentHashMap<>();
     private final Map<UUID, Set<UUID>> invitations = new ConcurrentHashMap<>();
-
     private final Set<String> namesGroups = ConcurrentHashMap.newKeySet();
     private final Set<String> tagsGroups = ConcurrentHashMap.newKeySet();
 
     private GroupService() {
         this.storage = new JsonStorage<>(new File(DATA_FOLDER, FILE_NAME), GroupData.class);
         loadGroups();
+    }
+
+    public static BetterGroupSystemPluginConfig getConfig() {
+        if (config == null) {
+            throw new IllegalStateException("GroupService config not initialized. Please ensure getInstance(config) is called before using the service.");
+        }
+        return config;
     }
 
     public static synchronized GroupService getInstance(BetterGroupSystemPluginConfig betterGroupSystemPluginConfig) {
@@ -936,11 +934,6 @@ public class GroupService {
                 notify(sender, "Your power: " + playerPower, false);
             } else if (type.equalsIgnoreCase("group")) {
                 notify(sender, "Faction Total Power: " + faction.getTotalPower(), false);
-                notify(sender, "Faction Kills: " + faction.getKills(), false);
-                notify(sender, "Faction Deaths: " + faction.getDeaths(), false);
-                notify(sender, "Faction K/D Ratio: " + String.format("%.2f", faction.getKillDeathRatio()), false);
-                notify(sender, "Max Claims: " + faction.getMaxClaims(getConfig().getClaimRatio()), false);
-                notify(sender, "Raidable: " + (faction.isRaidable() ? "Yes" : "No"), false);
             } else {
                 notify(sender, "Invalid type. Use 'player' or 'group'.");
             }
@@ -958,8 +951,8 @@ public class GroupService {
         String worldName = world.getName();
 
         // Map dimensions
-        int horizontalRadius = 4; // 4 chunks horizontally = 9x5 grid
-        int verticalRadius = 2;   // 2 chunks vertically
+        int horizontalRadius = 21; // 4 chunks horizontally = 9x5 grid
+        int verticalRadius = 6;   // 2 chunks vertically
         int mapWidth = horizontalRadius * 2 + 1;
         int mapHeight = verticalRadius * 2 + 1;
 
@@ -978,26 +971,27 @@ public class GroupService {
 
                 String symbol;
                 if (x == 0 && z == 0) {
-                    symbol = "◎"; // Player position
+                    symbol = "@"; // Player position
                 } else {
                     Group chunkOwner = getGroupByChunk(worldName, chunkX, chunkZ);
                     symbol = getChunkSymbol(chunkOwner, playerGroup);
                 }
+
 
                 mapLines[z + verticalRadius].append(symbol).append(" ");
             }
         }
 
         // Display the map
-        sendMapMessage(player, "=== CLAIM MAP ===");
+        sendMapMessage(player, "==================== CLAIM MAP ====================");
 
         // Map rows with simpler borders
         for (StringBuilder line : mapLines) {
             sendMapMessage(player, line.toString());
         }
 
-        sendMapMessage(player, "==================");
-        sendMapMessage(player, "KEY: ◎You ◆Own △Ally ▾Enemy ▢Wild");
+        sendMapMessage(player, "=================================================");
+        sendMapMessage(player, "KEY: @ -> You, O -> Own, A -> Ally, E -> Enemy, - -> Wild");
     }
 
     private void sendMapMessage(PlayerRef player, String message) {
@@ -1006,23 +1000,23 @@ public class GroupService {
 
     private String getChunkSymbol(Group chunkOwner, Group playerGroup) {
         if (chunkOwner == null) {
-            return "▢"; // Wilderness
+            return "-"; // Wilderness
         }
 
         if (chunkOwner.equals(playerGroup)) {
-            return "◆"; // Own
+            return "O"; // Own
         }
 
         // Check if ally or enemy
         dzve.model.DiplomacyStatus status = playerGroup.getDiplomacyStatus(chunkOwner.getId());
         switch (status) {
             case ALLY:
-                return "△"; // Ally
+                return "A"; // Ally
             case ENEMY:
-                return "▼"; // Enemy
+                return "E"; // Enemy
             case NEUTRAL:
             default:
-                return "▼"; // Default to enemy for non-allied groups
+                return "E"; // Default to enemy for non-allied groups
         }
     }
 
@@ -1197,9 +1191,6 @@ public class GroupService {
                 .forEach(player -> player.sendMessage(styledMessage.toMessage()));
     }
 
-    private record GroupData(Map<UUID, Group> groups) {
-    }
-
     public Group getGroupByChunk(String worldName, int chunkX, int chunkZ) {
         for (Group group : groups.values()) {
             String a = group.getName();
@@ -1208,6 +1199,9 @@ public class GroupService {
             }
         }
         return null;
+    }
+
+    private record GroupData(Map<UUID, Group> groups) {
     }
 
     private record ChunkInfo(Group group, int cx, int cz, String world) {

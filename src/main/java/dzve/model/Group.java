@@ -1,5 +1,6 @@
 package dzve.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
@@ -69,6 +70,7 @@ public abstract class Group {
         addMember(player, roles.stream().findFirst().orElseThrow().getId());
     }
 
+    @JsonIgnore
     public abstract GroupType getType();
 
     public void addMember(PlayerRef player, UUID roleId) {

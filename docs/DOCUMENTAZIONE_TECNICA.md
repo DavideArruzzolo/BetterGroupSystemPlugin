@@ -23,8 +23,9 @@ e Indice dei contenuti
 Questo documento fornisce una descrizione tecnica completa e professionalmente strutturata del progetto "
 BetterGroupSystemPlugin" (di seguito "il Plugin"), destinata a sviluppatori, architetti, project manager e stakeholder
 tecnici. Il documento è conforme alle migliori pratiche di documentazione tecnica (riferimenti: ISO/IEC/IEEE 26514, IEEE
+
 1016) e contiene: architettura, specifiche misurabili, diagrammi descrittivi, requisiti funzionali e non funzionali,
-strategie di testing, piani di deployment e operazioni di manutenzione.
+      strategie di testing, piani di deployment e operazioni di manutenzione.
 
 1.2 Contesto del progetto
 

@@ -14,6 +14,8 @@ import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.listener.ChatListener;
 import dzve.listener.MapPlayerListener;
 import dzve.service.group.GroupService;
+import dzve.systems.DamageTrackerSystem;
+import dzve.systems.PowerDeathSystem;
 import dzve.systems.PvPProtectionSystem;
 import dzve.systems.claim.ClaimAlertSystem;
 import dzve.systems.claim.ClaimProtectionSystems;
@@ -26,9 +28,9 @@ import java.util.Objects;
 public class BetterGroupSystemPlugin extends JavaPlugin {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     private static GroupService groupService;
-    private final Config<BetterGroupSystemPluginConfig> config;
     @Getter
     private static BetterGroupSystemPlugin instance;
+    private final Config<BetterGroupSystemPluginConfig> config;
     private BaseGroupCommand baseGroupCommand;
     private MapPlayerListener mapPlayerListener;
 
@@ -56,12 +58,15 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
     protected void start() {
         this.getEntityStoreRegistry().registerSystem(new ClaimAlertSystem());
         this.getEntityStoreRegistry().registerSystem(new PvPProtectionSystem(config));
+        this.getEntityStoreRegistry().registerSystem(new DamageTrackerSystem());
+        this.getEntityStoreRegistry().registerSystem(new PowerDeathSystem());
         this.mapPlayerListener = new MapPlayerListener(this);
         EventRegistry eventRegistry = this.getEventRegistry();
         MapPlayerListener player = this.mapPlayerListener;
         Objects.requireNonNull(player);
         eventRegistry.registerGlobal(PlayerReadyEvent.class, player::onPlayerReady);
         this.getEventRegistry().registerGlobal(PlayerChatEvent.class, ChatListener::onPlayerChat);
+
     }
 
     @Override

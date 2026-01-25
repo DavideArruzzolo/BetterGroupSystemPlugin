@@ -1,7 +1,7 @@
 {
   "Group": "Dzve",
   "Name": "BetterGroupSystemPlugin",
-  "Version": "0.0.251",
+  "Version": "0.0.275",
   "Description": "Comprehensive Factions & Guilds plugin for Hytale servers with PvP power system and economic progression",
   "Main": "dzve.BetterGroupSystemPlugin",
   "Authors": [
