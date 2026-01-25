@@ -6,9 +6,11 @@ import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.util.Config;
 import dzve.command.BaseGroupCommand;
 import dzve.config.BetterGroupSystemPluginConfig;
+import dzve.listener.GroupTracker;
 import dzve.service.group.GroupService;
 import dzve.systems.claim.ClaimAlertSystem;
 import dzve.systems.claim.ClaimProtectionSystems;
+import dzve.systems.claim.PvPProtectionSystem;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -16,7 +18,7 @@ import javax.annotation.Nonnull;
 
 @Getter
 public class BetterGroupSystemPlugin extends JavaPlugin {
-
+    private GroupTracker groupTracker;
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     private static GroupService groupService;
     private final Config<BetterGroupSystemPluginConfig> config;
@@ -26,7 +28,6 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
 
     public BetterGroupSystemPlugin(@Nonnull JavaPluginInit init) {
         super(init);
-        instance = this;
         this.config = this.withConfig("Config", BetterGroupSystemPluginConfig.CODEC);
         loadConfig();
     }
@@ -35,17 +36,27 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
     protected void setup() {
         LOGGER.atInfo().log("Setting up plugin " + this.getName());
         LOGGER.atInfo().log("Plugin mode: " + config.get().getPluginMode());
-        groupService = GroupService.getInstance(config.get());
         baseGroupCommand = new BaseGroupCommand(config.get());
-        this.getEntityStoreRegistry().registerSystem(new ClaimAlertSystem());
         this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.PlaceBlockProtectionSystem());
         this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.BreakBlockProtectionSystem());
         this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.UseBlockProtectionSystem());
+
         this.getCommandRegistry().registerCommand(baseGroupCommand);
     }
 
     @Override
+    protected void start() {
+        this.getEntityStoreRegistry().registerSystem(new ClaimAlertSystem());
+        this.getEntityStoreRegistry().registerSystem(new PvPProtectionSystem(config));
+        this.groupTracker = new GroupTracker();
+        this.groupTracker.start();
+    }
+
+    @Override
     protected void shutdown() {
+        if (this.groupTracker != null) {
+            this.groupTracker.stop();
+        }
         groupService.shutdown();
         LOGGER.atInfo().log("Shutdown up plugin " + this.getName());
     }
@@ -67,5 +78,9 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
         } catch (Exception e) {
             LOGGER.atSevere().log("Failed to load configuration: " + e.getMessage());
         }
+    }
+
+    public GroupTracker getTracker() {
+        return this.groupTracker;
     }
 }

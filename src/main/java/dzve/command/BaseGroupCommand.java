@@ -77,8 +77,8 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
     protected void execute(@Nonnull CommandContext commandContext, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef playerRef, @Nonnull World world) {
         Message message = ChatFormatter.of(BetterGroupSystemPluginConfig.MOD_NAME + " Available commands:").toMessage();
         playerRef.sendMessage(message);
-        getSubCommands().forEach((name, cmd) -> {
-            playerRef.sendMessage(ChatFormatter.of(" - " + name + ": " + cmd.getDescription()).toMessage());
-        });
+        getSubCommands().forEach((name, cmd) ->
+                playerRef.sendMessage(ChatFormatter.of(" - " + name + ": " + cmd.getDescription()).toMessage())
+        );
     }
 }

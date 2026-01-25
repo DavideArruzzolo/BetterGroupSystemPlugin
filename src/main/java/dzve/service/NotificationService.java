@@ -15,15 +15,11 @@ import java.util.Objects;
 import java.util.UUID;
 
 public final class NotificationService {
-
-    private static final NotificationService INSTANCE = new NotificationService();
     private static final String DEFAULT_ICON = "Weapon_Sword_Nexus";
-
-    private NotificationService() {
-    }
+    private static final NotificationService istance = new NotificationService();
 
     public static NotificationService getInstance() {
-        return INSTANCE;
+        return istance;
     }
 
     public void broadcastGroup(List<UUID> players, String message, NotificationStyle style) {

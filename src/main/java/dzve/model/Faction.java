@@ -2,7 +2,6 @@ package dzve.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
-import dzve.config.BetterGroupSystemPluginConfig;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
@@ -51,7 +50,7 @@ public class Faction extends Group {
         if (playerPower == null) {
             playerPower = new HashMap<>();
         }
-        playerPower.put(player.getUuid(), BetterGroupSystemPluginConfig.getInstance().getPlayerInitialPower());
+        playerPower.put(player.getUuid(), dzve.service.group.GroupService.getConfig().getPlayerInitialPower());
         recalculateTotalPower();
     }
 
@@ -99,7 +98,7 @@ public class Faction extends Group {
     }
 
     private void updateRaidableStatus() {
-        this.raidable = getClaims().size() > getMaxClaims(BetterGroupSystemPluginConfig.getInstance().getClaimRatio());
+        this.raidable = getClaims().size() > getMaxClaims(dzve.service.group.GroupService.getConfig().getClaimRatio());
     }
 
     public void incrementKills() {

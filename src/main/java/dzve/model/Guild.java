@@ -1,7 +1,6 @@
 package dzve.model;
 
 import com.hypixel.hytale.server.core.universe.PlayerRef;
-import dzve.config.BetterGroupSystemPluginConfig;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
@@ -55,11 +54,11 @@ public class Guild extends Group {
     }
 
     public boolean canUpgrade() {
-        return level < Arrays.stream(BetterGroupSystemPluginConfig.getInstance().getGuildLevels()).max().orElse(1) && getBankBalance() >= calculateCostToNextLevel();
+        return level < Arrays.stream(dzve.service.group.GroupService.getConfig().getGuildLevels()).max().orElse(1) && getBankBalance() >= calculateCostToNextLevel();
     }
 
     public double calculateCostToNextLevel() {
-        return BetterGroupSystemPluginConfig.getInstance().getInitialPrice() * Math.pow(BetterGroupSystemPluginConfig.getInstance().getLevelPriceMultiplier(), level + 1);
+        return dzve.service.group.GroupService.getConfig().getInitialPrice() * Math.pow(dzve.service.group.GroupService.getConfig().getLevelPriceMultiplier(), level + 1);
     }
 
     public double calculateDifferenceToNextLevel() {

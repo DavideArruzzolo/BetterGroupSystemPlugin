@@ -46,6 +46,14 @@ public class GroupService {
     private static final Pattern NAME_PATTERN = Pattern.compile("^[\\p{L}\\p{N}_]+$");
     private static final Pattern HEX_PATTERN = Pattern.compile("^#[0-9a-fA-F]{6}$");
     private static BetterGroupSystemPluginConfig config = null;
+
+    public static BetterGroupSystemPluginConfig getConfig() {
+        if (config == null) {
+            throw new IllegalStateException("GroupService config not initialized. Please ensure getInstance(config) is called before using the service.");
+        }
+        return config;
+    }
+
     private final JsonStorage<GroupData> storage;
     private final Map<UUID, Group> groups = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> playerGroupMap = new ConcurrentHashMap<>(); // PlayerUUID -> GroupUUID
@@ -60,6 +68,9 @@ public class GroupService {
     }
 
     public static synchronized GroupService getInstance(BetterGroupSystemPluginConfig betterGroupSystemPluginConfig) {
+        if (betterGroupSystemPluginConfig == null) {
+            return instance;
+        }
         config = betterGroupSystemPluginConfig;
         return instance;
     }
@@ -106,7 +117,7 @@ public class GroupService {
             notify(sender, "Player already in a group.");
             return;
         }
-        if (group.getMembers().size() >= (group.getType().equals(FACTION) ? config.getMaxSize() : config.getMaxSize() + config.getSlotQuantityGainForLevel() * ((Guild) group).getLevel())) {
+        if (group.getMembers().size() >= (group.getType().equals(FACTION) ? getConfig().getMaxSize() : getConfig().getMaxSize() + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel())) {
             notify(sender, "Group full.");
             return;
         }
@@ -126,22 +137,22 @@ public class GroupService {
         String safeName = normalize(name);
         String safeTag = normalize(tag);
 
-        if (!validateIdentifier(player, safeName, config.getMinNameLength(), config.getMaxNameLength(), namesGroups, "Name"))
+        if (!validateIdentifier(player, safeName, getConfig().getMinNameLength(), getConfig().getMaxNameLength(), namesGroups, "Name"))
             return;
-        if (!validateIdentifier(player, safeTag, config.getMinTagLength(), config.getMaxTagLength(), tagsGroups, "Tag"))
+        if (!validateIdentifier(player, safeTag, getConfig().getMinTagLength(), getConfig().getMaxTagLength(), tagsGroups, "Tag"))
             return;
         if (color != null && !HEX_PATTERN.matcher(color).matches()) {
             notify(player, "Invalid color code.");
             return;
         }
-        if (desc != null && desc.length() > config.getMaxDescriptionLength()) {
+        if (desc != null && desc.length() > getConfig().getMaxDescriptionLength()) {
             notify(player, "Description too long.");
             return;
         }
 
         Group group;
         desc = desc != null ? desc.substring(0, desc.length() - 1) : null;
-        if ("GUILD".equalsIgnoreCase(config.getPluginMode())) {
+        if ("GUILD".equalsIgnoreCase(getConfig().getPluginMode())) {
             group = new Guild(safeName, safeTag, desc, color, player);
         } else {
             group = new Faction(safeName, safeTag, desc, color, player);
@@ -195,7 +206,7 @@ public class GroupService {
                     notify(player, "Group name is already set to this value.");
                     return;
                 }
-                if (validateIdentifier(player, sName, config.getMinNameLength(), config.getMaxNameLength(), namesGroups, "Name")) {
+                if (validateIdentifier(player, sName, getConfig().getMinNameLength(), getConfig().getMaxNameLength(), namesGroups, "Name")) {
                     namesGroups.remove(group.getName().toLowerCase());
                     group.setName(sName);
                     namesGroups.add(sName.toLowerCase());
@@ -210,7 +221,7 @@ public class GroupService {
                     notify(player, "Group tag is already set to this value.");
                     return;
                 }
-                if (validateIdentifier(player, sTag, config.getMinTagLength(), config.getMaxTagLength(), tagsGroups, "Tag")) {
+                if (validateIdentifier(player, sTag, getConfig().getMinTagLength(), getConfig().getMaxTagLength(), tagsGroups, "Tag")) {
                     tagsGroups.remove(group.getTag().toLowerCase());
                     group.setTag(sTag);
                     tagsGroups.add(sTag.toLowerCase());
@@ -237,7 +248,7 @@ public class GroupService {
                     notify(player, "Group description is already set to this value.");
                     return;
                 }
-                if (value.length() <= config.getMaxDescriptionLength()) {
+                if (value.length() <= getConfig().getMaxDescriptionLength()) {
                     group.setDescription(value);
                     notify(player, "The description of the group updated successfully", false);
                 } else {
@@ -290,7 +301,7 @@ public class GroupService {
             notify(player, "No invitation from this group.");
             return;
         }
-        if (group.getMembers().size() >= config.getMaxSize()) {
+        if (group.getMembers().size() >= getConfig().getMaxSize()) {
             notify(player, "Group is full.");
             return;
         }
@@ -336,7 +347,7 @@ public class GroupService {
                 return;
             }
             group.removeHome(name);
-        } else if (group.getHomeCount() >= config.getMaxHome()) {
+        } else if (group.getHomeCount() >= getConfig().getMaxHome()) {
             notify(sender, "Max homes reached.");
             return;
         }
@@ -449,7 +460,7 @@ public class GroupService {
         }
 
         GroupRole senderRole = getMemberRole(group, sender.getUuid());
-        if (!group.isLeader(sender.getUuid()) && role.getPriority() >= senderRole.getPriority()) {
+        if (!group.isLeader(sender.getUuid()) && role.getPriority() >= (senderRole != null ? senderRole.getPriority() : 0)) {
             notify(sender, "Cannot promote to rank >= yours.");
             return;
         }
@@ -471,12 +482,12 @@ public class GroupService {
         }
 
         if (chunkInfo.group instanceof Faction f) {
-            int maxClaims = f.getMaxClaims(config.getClaimRatio());
+            int maxClaims = f.getMaxClaims(getConfig().getClaimRatio());
             if (f.getClaims().size() >= maxClaims) {
                 notify(sender, "Not enough power. Claims: " + f.getClaims().size() + "/" + maxClaims);
                 return;
             }
-        } else if (chunkInfo.group.getClaims().size() >= config.getMaxClaimsPerFaction()) {
+        } else if (chunkInfo.group.getClaims().size() >= getConfig().getMaxClaimsPerFaction()) {
             notify(sender, "Claim limit reached.");
             return;
         }
@@ -642,8 +653,8 @@ public class GroupService {
                         .append("Description: ").append(group.getDescription() != null ? group.getDescription() : "No description set" + "\n").withBold()
                         .append("\n")
                         .append("Leader: ").append(leaderName + "\n").withBold()
-                        .append("Members: ").append(group.getMembers().size() + " / " + (group.getType().equals(FACTION) ? config.getMaxSize() : config.getMaxSize() + config.getSlotQuantityGainForLevel() * ((Guild) group).getLevel()) + "\n").withBold()
-                        .append("Claims: ").append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid())) ? group.getClaims().size() + " / " + config.getMaxClaimsPerFaction() + "\n" : "Not allowed to see this info\n").withBold()
+                        .append("Members: ").append(group.getMembers().size() + " / " + (group.getType().equals(FACTION) ? getConfig().getMaxSize() : getConfig().getMaxSize() + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel()) + "\n").withBold()
+                        .append("Claims: ").append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid())) ? group.getClaims().size() + " / " + getConfig().getMaxClaimsPerFaction() + "\n" : "Not allowed to see this info\n").withBold()
                         .append("Homes: ").append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid())) ? group.getHomeCount() + "\n" : "Not allowed to see this info\n").withBold()
                         .append("Bank: ").append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid())) ? String.format("%.2f", group.getBankBalance()) + "\n" : "Not allowed to see this info\n").withBold()
                         .append("Created: ").append(group.getCreatedAt().toLocalDate().toString() + "\n").withBold()
@@ -697,7 +708,7 @@ public class GroupService {
                             .append("Description: ").append(group.getDescription() != null ? group.getDescription() : "No description set" + "\n").withBold()
                             .append("\n")
                             .append("Leader: ").append(leaderName + "\n").withBold()
-                            .append("Members: ").append(group.getMembers().size() + " / " + (group.getType().equals(FACTION) ? config.getMaxSize() : config.getMaxSize() + config.getSlotQuantityGainForLevel() * ((Guild) group).getLevel()) + "\n").withBold();
+                            .append("Members: ").append(group.getMembers().size() + " / " + (group.getType().equals(FACTION) ? getConfig().getMaxSize() : getConfig().getMaxSize() + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel()) + "\n").withBold();
 
                     if (group instanceof Faction faction) {
                         msg.append("Total Power: ").append(String.format("%.2f", faction.getTotalPower()) + "\n").withBold();
@@ -876,7 +887,6 @@ public class GroupService {
         Group group = getGroupOrNotify(sender);
         if (group == null) return;
 
-        // TODO: Integrare check: if (EconomyService.remove(sender, amount)) ...
 
         group.depositToGroup(amount);
         if (group instanceof Guild guild) {
@@ -929,6 +939,15 @@ public class GroupService {
         UUID gid = playerGroupMap.get(p.getUuid());
         if (gid == null) notify(p, "You are not in a group.");
         return gid != null ? groups.get(gid) : null;
+    }
+
+    @Nullable
+    public Group getPlayerGroup(UUID playerUuid) {
+        UUID groupId = playerGroupMap.get(playerUuid);
+        if (groupId != null) {
+            return groups.get(groupId);
+        }
+        return null;
     }
 
     private boolean isLeader(Group g, PlayerRef p) {
@@ -1013,6 +1032,7 @@ public class GroupService {
 
     public Group getGroupByChunk(String worldName, int chunkX, int chunkZ) {
         for (Group group : groups.values()) {
+            String a = group.getName();
             if (group.isChunkClaimed(chunkX, chunkZ, worldName)) {
                 return group;
             }

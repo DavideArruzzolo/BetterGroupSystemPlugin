@@ -194,21 +194,14 @@ public abstract class Group {
         claims.removeIf(claim ->
                 claim.getChunkX() == chunkX &&
                         claim.getChunkZ() == chunkZ &&
-                        claim.getWorld().equals(UUID.fromString(worldName)));
+                        claim.getWorld().equals(worldName));
     }
 
     public boolean isChunkClaimed(int chunkX, int chunkZ, String worldName) {
-        UUID worldId;
-        try {
-            worldId = UUID.fromString(worldName);
-        } catch (IllegalArgumentException e) {
-            // Handle cases where worldName is not a valid UUID if necessary
-            return false;
-        }
         return claims.stream().anyMatch(claim ->
                 claim.getChunkX() == chunkX &&
                         claim.getChunkZ() == chunkZ &&
-                        claim.getWorld().equals(worldId)
+                        claim.getWorld().equals(worldName)
         );
     }
 }

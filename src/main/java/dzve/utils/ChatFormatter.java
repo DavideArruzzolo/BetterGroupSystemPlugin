@@ -13,7 +13,7 @@ import static java.util.Map.entry;
 
 @ToString
 public final class ChatFormatter {
-    private static final Pattern TAG_PATTERN = Pattern.compile("<(/?)([a-zA-Z0-9_]+)(?::([^>]+))?>");
+    private static final Pattern TAG_PATTERN = Pattern.compile("<(/?)([\\w]+)(?::([^>]+))?>");
     private static final Map<String, Color> NAMED_COLORS = Map.ofEntries(
             entry("black", new Color(0, 0, 0)),
             entry("dark_blue", new Color(0, 0, 170)),
@@ -132,7 +132,8 @@ public final class ChatFormatter {
                 var rgb = HexFormat.of().parseHex(clean);
                 return new Color(rgb[0] & 0xFF, rgb[1] & 0xFF, rgb[2] & 0xFF);
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+
         }
         return null;
     }
@@ -183,10 +184,6 @@ public final class ChatFormatter {
             return applyToLast(s -> new Segment(s.text(), s.style().withColor(color)));
         }
 
-        public StyledText withGradient(Color startColor, Color endColor) {
-            return applyToLast(s -> new Segment(s.text(), s.style().withGradient(startColor, endColor)));
-        }
-
         public StyledText append(String text) {
             List<Segment> newSegments = new ArrayList<>(segments);
             newSegments.add(new Segment(text, new StyleState()));
@@ -209,42 +206,37 @@ public final class ChatFormatter {
     }
 
     public record StyleState(Color color, boolean bold, boolean italic,
-                             boolean underlined, boolean monospace, String link,
-                             Color gradientStart, Color gradientEnd) {
+                             boolean underlined, boolean monospace, String link) {
         public StyleState() {
-            this(null, false, false, false, false, null, null, null);
+            this(null, false, false, false, false, null);
         }
 
         public StyleState copy() {
-            return new StyleState(color, bold, italic, underlined, monospace, link, gradientStart, gradientEnd);
+            return new StyleState(color, bold, italic, underlined, monospace, link);
         }
 
         public StyleState withColor(Color color) {
-            return new StyleState(color, bold, italic, underlined, monospace, link, gradientStart, gradientEnd);
+            return new StyleState(color, bold, italic, underlined, monospace, link);
         }
 
         public StyleState withBold() {
-            return new StyleState(color, true, italic, underlined, monospace, link, gradientStart, gradientEnd);
+            return new StyleState(color, true, italic, underlined, monospace, link);
         }
 
         public StyleState withItalic() {
-            return new StyleState(color, bold, true, underlined, monospace, link, gradientStart, gradientEnd);
+            return new StyleState(color, bold, true, underlined, monospace, link);
         }
 
         public StyleState withUnderlined() {
-            return new StyleState(color, bold, italic, true, monospace, link, gradientStart, gradientEnd);
+            return new StyleState(color, bold, italic, true, monospace, link);
         }
 
         public StyleState withMonospace() {
-            return new StyleState(color, bold, italic, underlined, true, link, gradientStart, gradientEnd);
+            return new StyleState(color, bold, italic, underlined, true, link);
         }
 
         public StyleState withLink(String link) {
-            return new StyleState(color, bold, italic, underlined, monospace, link, gradientStart, gradientEnd);
-        }
-
-        public StyleState withGradient(Color startColor, Color endColor) {
-            return new StyleState(color, bold, italic, underlined, monospace, link, startColor, endColor);
+            return new StyleState(color, bold, italic, underlined, monospace, link);
         }
     }
 }

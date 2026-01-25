@@ -68,7 +68,7 @@ public class BetterGroupSystemPluginConfig {
     private double powerGainByTime = 0.001;
     private double powerLooseByDeath = 1;
     private double powerRegenOffline = 0.0001;
-    private double claimRatio = 0.5;
+    private double claimRatio = 1;
     private int maxClaimsPerFaction = 100;
     private int[] guildLevels = {1, 2, 3, 4, 5};
     private double initialPrice = 2500;
@@ -83,14 +83,4 @@ public class BetterGroupSystemPluginConfig {
     private int maxHome = 5;
     private int chatMessageMaxLength = 40;
     private boolean pvpEnabled = true;
-
-    public BetterGroupSystemPluginConfig() {
-    }
-
-    public static BetterGroupSystemPluginConfig getInstance() {
-        if (instance == null) {
-            instance = new BetterGroupSystemPluginConfig();
-        }
-        return instance;
-    }
 }

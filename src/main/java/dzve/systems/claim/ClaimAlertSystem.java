@@ -1,6 +1,9 @@
 package dzve.systems.claim;
 
-import com.hypixel.hytale.component.*;
+import com.hypixel.hytale.component.ArchetypeChunk;
+import com.hypixel.hytale.component.CommandBuffer;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.server.core.Message;
@@ -8,6 +11,7 @@ import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.EventTitleUtil;
+import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.model.Group;
 import dzve.service.group.GroupService;
 import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
@@ -22,9 +26,8 @@ public class ClaimAlertSystem extends EntityTickingSystem<EntityStore> {
     private static final Message SUBTITLE_MESSAGE = Message.raw("BetterGroupSystem");
     private final Map<UUID, String> playerLastTitle = new ConcurrentHashMap<>();
 
-    @Override
     public Query<EntityStore> getQuery() {
-        return Archetype.of(PlayerRef.getComponentType());
+        return Player.getComponentType();
     }
 
     @Override
@@ -53,12 +56,8 @@ public class ClaimAlertSystem extends EntityTickingSystem<EntityStore> {
             String previousTitle = playerLastTitle.get(playerRef.getUuid());
             if (!titleText.equals(previousTitle)) {
                 playerLastTitle.put(playerRef.getUuid(), titleText);
-                EventTitleUtil.showEventTitleToPlayer(playerRef, titleMessage, SUBTITLE_MESSAGE, false, null, 2.0f, 0.5f, 0.5f);
+                EventTitleUtil.showEventTitleToPlayer(playerRef, titleMessage, Message.raw(BetterGroupSystemPluginConfig.MOD_NAME), false, null, 2.0f, 0.5f, 0.5f);
             }
         }
-    }
-
-    public void removePlayer(UUID playerId) {
-        playerLastTitle.remove(playerId);
     }
 }
