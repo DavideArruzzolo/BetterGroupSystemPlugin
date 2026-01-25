@@ -13,6 +13,7 @@ import dzve.command.diplomacy.DiplomacyCommand;
 import dzve.command.diplomacy.ListDiplomacyCommand;
 import dzve.command.economy.DepositCommand;
 import dzve.command.economy.GetBalanceCommand;
+import dzve.command.economy.GetPowerCommand;
 import dzve.command.economy.WithdrawCommand;
 import dzve.command.management.*;
 import dzve.command.member.*;
@@ -50,6 +51,7 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
         addSubCommand(new ListRolesCommand(groupService));
 
         addSubCommand(new ClaimChunkCommand(groupService));
+        addSubCommand(new ClaimMapCommand(groupService));
         addSubCommand(new UnclaimChunkCommand(groupService));
         addSubCommand(new SetHomeCommand(groupService));
         addSubCommand(new HomeCommand(groupService));
@@ -60,6 +62,7 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
         addSubCommand(new DepositCommand(groupService));
         addSubCommand(new WithdrawCommand(groupService));
         addSubCommand(new GetBalanceCommand(groupService));
+        addSubCommand(new GetPowerCommand(groupService));
         addSubCommand(new GroupInfoCommand(groupService));
 
         addSubCommand(new DiplomacyCommand(groupService));

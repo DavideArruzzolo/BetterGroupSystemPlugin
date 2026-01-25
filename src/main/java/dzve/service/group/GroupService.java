@@ -926,6 +926,106 @@ public class GroupService {
         }
     }
 
+    public void getPower(PlayerRef sender, @Nullable String type) {
+        Group group = getGroupOrNotify(sender);
+        if (group == null) return;
+
+        if (group instanceof dzve.model.Faction faction) {
+            if (type == null || type.equalsIgnoreCase("player")) {
+                double playerPower = faction.getPlayerPower(sender.getUuid());
+                notify(sender, "Your power: " + playerPower, false);
+            } else if (type.equalsIgnoreCase("group")) {
+                notify(sender, "Faction Total Power: " + faction.getTotalPower(), false);
+                notify(sender, "Faction Kills: " + faction.getKills(), false);
+                notify(sender, "Faction Deaths: " + faction.getDeaths(), false);
+                notify(sender, "Faction K/D Ratio: " + String.format("%.2f", faction.getKillDeathRatio()), false);
+                notify(sender, "Max Claims: " + faction.getMaxClaims(getConfig().getClaimRatio()), false);
+                notify(sender, "Raidable: " + (faction.isRaidable() ? "Yes" : "No"), false);
+            } else {
+                notify(sender, "Invalid type. Use 'player' or 'group'.");
+            }
+        } else {
+            notify(sender, "Power system is only available for factions.", false);
+        }
+    }
+
+    public void showClaimMap(PlayerRef player, World world) {
+        Group playerGroup = getGroupOrNotify(player);
+        if (playerGroup == null) return;
+
+        int playerChunkX = (int) player.getTransform().getPosition().getX() >> 5;
+        int playerChunkZ = (int) player.getTransform().getPosition().getZ() >> 5;
+        String worldName = world.getName();
+
+        // Map dimensions
+        int horizontalRadius = 4; // 4 chunks horizontally = 9x5 grid
+        int verticalRadius = 2;   // 2 chunks vertically
+        int mapWidth = horizontalRadius * 2 + 1;
+        int mapHeight = verticalRadius * 2 + 1;
+
+        // Build the map
+        StringBuilder[] mapLines = new StringBuilder[mapHeight];
+        for (int i = 0; i < mapHeight; i++) {
+            mapLines[i] = new StringBuilder();
+        }
+
+        // Generate map content
+        for (int z = -verticalRadius; z <= verticalRadius; z++) {
+            for (int x = -horizontalRadius; x <= horizontalRadius; x++) {
+                int chunkX = playerChunkX + x;
+                int chunkZ = playerChunkZ + z;
+
+
+                String symbol;
+                if (x == 0 && z == 0) {
+                    symbol = "◎"; // Player position
+                } else {
+                    Group chunkOwner = getGroupByChunk(worldName, chunkX, chunkZ);
+                    symbol = getChunkSymbol(chunkOwner, playerGroup);
+                }
+
+                mapLines[z + verticalRadius].append(symbol).append(" ");
+            }
+        }
+
+        // Display the map
+        sendMapMessage(player, "=== CLAIM MAP ===");
+
+        // Map rows with simpler borders
+        for (StringBuilder line : mapLines) {
+            sendMapMessage(player, line.toString());
+        }
+
+        sendMapMessage(player, "==================");
+        sendMapMessage(player, "KEY: ◎You ◆Own △Ally ▾Enemy ▢Wild");
+    }
+
+    private void sendMapMessage(PlayerRef player, String message) {
+        player.sendMessage(com.hypixel.hytale.server.core.Message.raw(message));
+    }
+
+    private String getChunkSymbol(Group chunkOwner, Group playerGroup) {
+        if (chunkOwner == null) {
+            return "▢"; // Wilderness
+        }
+
+        if (chunkOwner.equals(playerGroup)) {
+            return "◆"; // Own
+        }
+
+        // Check if ally or enemy
+        dzve.model.DiplomacyStatus status = playerGroup.getDiplomacyStatus(chunkOwner.getId());
+        switch (status) {
+            case ALLY:
+                return "△"; // Ally
+            case ENEMY:
+                return "▼"; // Enemy
+            case NEUTRAL:
+            default:
+                return "▼"; // Default to enemy for non-allied groups
+        }
+    }
+
     @Nullable
     private ChunkInfo getChunkInfo(PlayerRef sender, World world) {
         Group group = getGroupOrNotify(sender);

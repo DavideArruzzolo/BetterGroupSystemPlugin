@@ -14,9 +14,9 @@ import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.listener.ChatListener;
 import dzve.listener.MapPlayerListener;
 import dzve.service.group.GroupService;
+import dzve.systems.PvPProtectionSystem;
 import dzve.systems.claim.ClaimAlertSystem;
 import dzve.systems.claim.ClaimProtectionSystems;
-import dzve.systems.claim.PvPProtectionSystem;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;

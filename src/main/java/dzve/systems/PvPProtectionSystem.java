@@ -1,4 +1,4 @@
-package dzve.systems.claim;
+package dzve.systems;
 
 import com.hypixel.hytale.component.*;
 import com.hypixel.hytale.component.query.Query;
