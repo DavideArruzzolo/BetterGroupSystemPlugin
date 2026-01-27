@@ -1,5 +1,6 @@
 package dzve.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
 import java.util.UUID;
@@ -11,13 +12,21 @@ import java.util.UUID;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class GroupHome {
     @EqualsAndHashCode.Include
+    @JsonProperty("id")
     private UUID id;
+    @JsonProperty("name")
     private String name;
+    @JsonProperty("world")
     private UUID world;
+    @JsonProperty("x")
     private double x;
+    @JsonProperty("y")
     private double y;
+    @JsonProperty("z")
     private double z;
+    @JsonProperty("yaw")
     private float yaw;
+    @JsonProperty("pitch")
     private float pitch;
 
     public GroupHome(String name, UUID world, double x, double y, double z, float yaw, float pitch) {

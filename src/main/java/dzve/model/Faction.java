@@ -1,6 +1,7 @@
 package dzve.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
@@ -18,21 +19,27 @@ import java.util.UUID;
 public class Faction extends Group {
 
     @Builder.Default
+    @JsonProperty("totalPower")
     private double totalPower = 0.0;
 
     @Builder.Default
+    @JsonProperty("playerPower")
     private Map<UUID, Double> playerPower = new HashMap<>();
 
     @Builder.Default
+    @JsonProperty("kills")
     private int kills = 0;
 
     @Builder.Default
+    @JsonProperty("deaths")
     private int deaths = 0;
 
     @Builder.Default
+    @JsonProperty("raidable")
     private boolean raidable = false;
 
     @Builder.Default
+    @JsonProperty("lastRaidNotificationTimestamp")
     private long lastRaidNotificationTimestamp = 0;
 
     public Faction(String name, String tag, String description, String color, PlayerRef player) {

@@ -1,6 +1,7 @@
 package dzve.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
@@ -24,33 +25,46 @@ public abstract class Group {
 
     @EqualsAndHashCode.Include
     @Builder.Default
+    @JsonProperty("id")
     private UUID id = UUID.randomUUID();
 
+    @JsonProperty("name")
     private String name;
+    @JsonProperty("tag")
     private String tag;
+    @JsonProperty("description")
     private String description;
+    @JsonProperty("color")
     private String color;
+    @JsonProperty("leaderId")
     private UUID leaderId;
 
     @Builder.Default
+    @JsonProperty("homes")
     private Set<GroupHome> homes = new HashSet<>();
 
     @Builder.Default
+    @JsonProperty("claims")
     private Set<GroupClaimedChunk> claims = new HashSet<>();
 
     @Builder.Default
+    @JsonProperty("members")
     private Set<GroupMember> members = new HashSet<>();
 
     @Builder.Default
+    @JsonProperty("roles")
     private Set<GroupRole> roles = GroupRole.initializeRoles();
 
     @Builder.Default
+    @JsonProperty("bankBalance")
     private double bankBalance = 0.0;
 
     @Builder.Default
+    @JsonProperty("createdAt")
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @Builder.Default
+    @JsonProperty("diplomaticRelations")
     private Map<UUID, DiplomacyStatus> diplomaticRelations = new HashMap<>();
 
     public Group(String name, String tag, String description, String color, PlayerRef player) {
@@ -198,17 +212,14 @@ public abstract class Group {
     }
 
     public void removeClaim(int chunkX, int chunkZ, String worldName) {
-        claims.removeIf(claim ->
-                claim.getChunkX() == chunkX &&
-                        claim.getChunkZ() == chunkZ &&
-                        claim.getWorld().equals(worldName));
+        claims.removeIf(claim -> claim.getChunkX() == chunkX &&
+                claim.getChunkZ() == chunkZ &&
+                claim.getWorld().equals(worldName));
     }
 
     public boolean isChunkClaimed(int chunkX, int chunkZ, String worldName) {
-        return claims.stream().anyMatch(claim ->
-                claim.getChunkX() == chunkX &&
-                        claim.getChunkZ() == chunkZ &&
-                        claim.getWorld().equals(worldName)
-        );
+        return claims.stream().anyMatch(claim -> claim.getChunkX() == chunkX &&
+                claim.getChunkZ() == chunkZ &&
+                claim.getWorld().equals(worldName));
     }
 }
