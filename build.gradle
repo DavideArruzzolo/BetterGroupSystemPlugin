@@ -3,10 +3,14 @@ plugins {
     id 'org.jetbrains.gradle.plugin.idea-ext' version '1.3'
 }
 
+
 repositories {
     mavenCentral()
 }
 
+configurations {
+    proguard
+}
 
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
@@ -48,13 +52,14 @@ javadoc {
 
 
 dependencies {
-    implementation(files("$hytaleHome/install/$patchline/package/game/latest/Server/HytaleServer.jar"))
-    implementation("org.projectlombok:lombok:1.18.42")
+    compileOnly(files("$hytaleHome/install/$patchline/package/game/latest/Server/HytaleServer.jar"))
+    compileOnly("org.projectlombok:lombok:1.18.42")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.21.0")
     implementation("com.fasterxml.jackson.core:jackson-core:2.21.0")
     implementation("com.fasterxml.jackson.core:jackson-annotations:2.21")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.0")
     annotationProcessor("org.projectlombok:lombok:1.18.42")
+    proguard("com.guardsquare:proguard-base:7.8.2")
 }
 
 
@@ -108,4 +113,46 @@ idea.project.settings.runConfigurations {
         programParameters = createServerRunArguments(sourceSets.main.java.srcDirs.first().parentFile.absolutePath)
         workingDirectory = serverRunDir.absolutePath
     }
+}
+
+tasks.jar {
+    archiveClassifier.set("unobfuscated")
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.register('proguard', JavaExec) {
+    dependsOn tasks.jar
+    classpath = configurations.proguard
+    mainClass.set("proguard.ProGuard")
+    
+    doFirst {
+        def argsList = [
+            "-injars", "build/libs/${project.name}-${version}-unobfuscated.jar",
+            "-outjars", "build/libs/${project.name}-${version}.jar",
+            "@proguard-rules.pro"
+        ]
+        args(argsList)
+    }
+    
+    doLast {
+        println "✓ Obfuscated JAR created: build/libs/${project.name}-${version}.jar"
+    }
+}
+
+tasks.register('copyObfuscatedJarToHytale', Copy) {
+    dependsOn 'proguard'
+    def obfuscatedJar = file("build/libs/${project.name}-${version}.jar")
+    from(obfuscatedJar)
+    into("${hytaleHome}/UserData/Mods")
+    
+    doLast {
+        println "✓ Obfuscated JAR copied to Hytale Mods"
+    }
+}
+
+tasks.build {
+    finalizedBy 'proguard', 'copyObfuscatedJarToHytale'
 }
