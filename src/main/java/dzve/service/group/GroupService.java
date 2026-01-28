@@ -51,7 +51,6 @@ public class GroupService {
     private final Set<String> namesGroups = ConcurrentHashMap.newKeySet();
     private final Set<String> tagsGroups = ConcurrentHashMap.newKeySet();
 
-    // Sub-Services
     @Getter
     private final TerritoryService territoryService;
     @Getter
@@ -60,6 +59,9 @@ public class GroupService {
     private final DiplomacyService diplomacyService;
     @Getter
     private final MembershipService membershipService;
+
+    private final java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors
+            .newSingleThreadExecutor();
 
     private GroupService() {
         this.storage = new JsonStorage<>(new File(DATA_FOLDER, FILE_NAME), GroupData.class);
@@ -78,15 +80,29 @@ public class GroupService {
         return config;
     }
 
-    public static synchronized GroupService getInstance(BetterGroupSystemPluginConfig betterGroupSystemPluginConfig) {
+    public static void initialize(BetterGroupSystemPluginConfig betterGroupSystemPluginConfig) {
         if (betterGroupSystemPluginConfig == null) {
-            if (config == null) {
-                LOGGER.atWarning().log(
-                        "GroupService.getInstance(null) called before config initialization! This may lead to errors.");
-            }
-            return instance;
+            throw new IllegalArgumentException("Config cannot be null during initialization");
         }
         config = betterGroupSystemPluginConfig;
+    }
+
+    public static GroupService getInstance() {
+        if (config == null) {
+            throw new IllegalStateException("GroupService not initialized! Call initialize() first.");
+        }
+        return instance;
+    }
+
+    @Deprecated
+    public static synchronized GroupService getInstance(BetterGroupSystemPluginConfig betterGroupSystemPluginConfig) {
+        if (config == null) {
+            if (betterGroupSystemPluginConfig != null) {
+                initialize(betterGroupSystemPluginConfig);
+            } else {
+                LOGGER.atWarning().log("GroupService.getInstance(null) called before config initialization!");
+            }
+        }
         return instance;
     }
 
@@ -111,6 +127,15 @@ public class GroupService {
 
     public void shutdown() {
         storage.shutdown();
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void cacheGroupData(Group group) {
@@ -121,7 +146,20 @@ public class GroupService {
     }
 
     public void saveGroups() {
-        storage.saveAsync(new GroupData(new HashMap<>(groups)));
+
+        Map<UUID, Group> groupsCopy = new HashMap<>();
+        for (Map.Entry<UUID, Group> entry : this.groups.entrySet()) {
+            groupsCopy.put(entry.getKey(), entry.getValue().copy());
+        }
+        GroupData dataToSave = new GroupData(groupsCopy);
+
+        executor.submit(() -> {
+            try {
+                storage.save(dataToSave);
+            } catch (Exception e) {
+                LOGGER.atSevere().withCause(e).log("Failed to save groups");
+            }
+        });
     }
 
     public void invitePlayer(PlayerRef sender, PlayerRef target) {
@@ -164,7 +202,6 @@ public class GroupService {
         cacheGroupData(group);
         saveGroups();
 
-        // Aggiorna la mappa per il creatore del gruppo
         updateGroupMaps(group);
 
         notify(player, "Group created successfully!", false);
@@ -175,18 +212,16 @@ public class GroupService {
         if (group == null || !isLeader(group, player))
             return;
 
-        // Aggiorna la mappa per tutti i membri prima di eliminare il gruppo
         updateGroupMaps(group);
 
         namesGroups.remove(group.getName().toLowerCase());
         tagsGroups.remove(group.getTag().toLowerCase());
         group.getMembers().forEach(m -> {
             playerGroupMap.remove(m.getPlayerId());
-            // Clear map filter for players who are being removed from group
+
             clearPlayerMapFilter(m.getPlayerId());
         });
 
-        // Remove chunks from cache
         territoryService.uncacheGroupClaims(group);
 
         groups.remove(group.getId());
@@ -269,9 +304,8 @@ public class GroupService {
         }
         saveGroups();
 
-        // Aggiorna la mappa per tutti i membri del gruppo quando nome/tag cambiano
         if ("name".equalsIgnoreCase(type) || "tag".equalsIgnoreCase(type)) {
-            // Update name/tag cache
+
             if ("name".equalsIgnoreCase(type)) {
                 namesGroups.remove(group.getName().toLowerCase());
                 namesGroups.add(normalize(value).toLowerCase());
@@ -665,22 +699,20 @@ public class GroupService {
         if (universe == null)
             return;
 
-        // Per ogni membro del gruppo, aggiorna il filtro della mappa
         for (GroupMember member : group.getMembers()) {
-            universe.getPlayers().forEach(playerRef -> {
-                if (playerRef.getUuid().equals(member.getPlayerId())) {
-                    Player player = Objects.requireNonNull(playerRef.getReference()).getStore().getComponent(
-                            playerRef.getReference(),
-                            Player.getComponentType());
-                    WorldMapTracker mapTracker = null;
-                    if (player != null) {
-                        mapTracker = player.getWorldMapTracker();
-                    }
-                    if (mapTracker != null) {
-                        MapUtils.updateMapFilter(mapTracker, member.getPlayerId(), this);
-                    }
+            PlayerRef playerRef = universe.getPlayer(member.getPlayerId());
+            if (playerRef != null) {
+                Player player = Objects.requireNonNull(playerRef.getReference()).getStore().getComponent(
+                        playerRef.getReference(),
+                        Player.getComponentType());
+                WorldMapTracker mapTracker = null;
+                if (player != null) {
+                    mapTracker = player.getWorldMapTracker();
                 }
-            });
+                if (mapTracker != null) {
+                    MapUtils.updateMapFilter(mapTracker, member.getPlayerId(), this);
+                }
+            }
         }
     }
 

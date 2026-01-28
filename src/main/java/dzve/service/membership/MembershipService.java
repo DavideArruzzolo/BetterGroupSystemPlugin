@@ -168,7 +168,7 @@ public class MembershipService {
     public void transferLeadership(PlayerRef sender, UUID targetId) {
         Group group = groupService.getGroupOrNotify(sender);
         if (group == null || !group.isLeader(sender.getUuid()))
-            return; // Only leader can transfer
+            return;
         if (!group.isMember(targetId)) {
             groupService.notify(sender, "Target not in group.");
             return;
@@ -304,12 +304,6 @@ public class MembershipService {
         groupService.notify(sender, "Role updated successfully.", false);
     }
 
-    // Helper methods (extracted from GroupService, potentially duplicated or
-    // shared)
-    // To avoid duplication, I should request GroupService to expose these helpers
-    // or make them Utils.
-    // For now I copy them to keep Service independent.
-
     private boolean canModify(Group g, UUID actor, UUID target) {
         if (g.isLeader(actor))
             return true;
@@ -356,7 +350,6 @@ public class MembershipService {
         }
     }
 
-    // Getters for invitations if needed
     public Set<UUID> getInvites(UUID playerId) {
         return invitations.get(playerId);
     }
@@ -454,7 +447,6 @@ public class MembershipService {
                                 .append(perms.isEmpty() ? "None" : perms).append("\n")
                                 .append("Members with this role: ").withColor(Color.WHITE);
 
-                        // Count members with this role
                         long memberCount = group.getMembers().stream()
                                 .filter(m -> m.getRoleId().equals(role.getId()))
                                 .count();

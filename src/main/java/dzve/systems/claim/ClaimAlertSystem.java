@@ -29,7 +29,8 @@ public class ClaimAlertSystem extends EntityTickingSystem<EntityStore> {
     }
 
     @Override
-    public void tick(float deltaTime, int index, ArchetypeChunk<EntityStore> chunk, Store<EntityStore> store, @NonNullDecl CommandBuffer<EntityStore> buf) {
+    public void tick(float deltaTime, int index, ArchetypeChunk<EntityStore> chunk, Store<EntityStore> store,
+                     @NonNullDecl CommandBuffer<EntityStore> buf) {
         Ref<EntityStore> ref = chunk.getReferenceTo(index);
         PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
         Player player = store.getComponent(ref, Player.getComponentType());
@@ -45,7 +46,7 @@ public class ClaimAlertSystem extends EntityTickingSystem<EntityStore> {
             int chunkZ = blockZ >> 5;
             String worldName = player.getWorld() != null ? player.getWorld().getName() : null;
 
-            Group group = GroupService.getInstance(null).getGroupByChunk(worldName, chunkX, chunkZ);
+            Group group = GroupService.getInstance().getGroupByChunk(worldName, chunkX, chunkZ);
             if (group != null) {
                 titleText = group.getName();
                 titleMessage = Message.raw(titleText).color(new Color(255, 215, 0));
@@ -54,7 +55,8 @@ public class ClaimAlertSystem extends EntityTickingSystem<EntityStore> {
             String previousTitle = playerLastTitle.get(playerRef.getUuid());
             if (!titleText.equals(previousTitle)) {
                 playerLastTitle.put(playerRef.getUuid(), titleText);
-                EventTitleUtil.showEventTitleToPlayer(playerRef, titleMessage, Message.raw(BetterGroupSystemPluginConfig.MOD_NAME), false, null, 2.0f, 0.5f, 0.5f);
+                EventTitleUtil.showEventTitleToPlayer(playerRef, titleMessage,
+                        Message.raw(BetterGroupSystemPluginConfig.MOD_NAME), false, null, 2.0f, 0.5f, 0.5f);
             }
         }
     }

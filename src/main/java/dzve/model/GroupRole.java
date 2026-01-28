@@ -26,7 +26,8 @@ public class GroupRole {
     @JsonProperty("isDefault")
     private boolean isDefault;
 
-    public GroupRole(String name, String displayName, int priority, boolean isDefault, Set<Permission> permissions) {
+    public GroupRole(String name, String displayName, int priority, boolean isDefault,
+                     Set<Permission> permissions) {
         this.id = UUID.randomUUID();
         this.name = name;
         this.displayName = displayName;
@@ -71,6 +72,18 @@ public class GroupRole {
                         Permission.CAN_MANAGE_BANK,
                         Permission.CAN_UPDATE_GROUP,
                         Permission.CAN_UPGRADE_GUILD)));
+    }
+
+    public GroupRole copy() {
+        return GroupRole.builder()
+                .id(this.id)
+                .name(this.name)
+                .displayName(this.displayName)
+                .priority(this.priority)
+                .permissions(this.permissions != null ? new java.util.HashSet<>(this.permissions)
+                        : null)
+                .isDefault(this.isDefault)
+                .build();
     }
 
     public boolean hasPermission(Permission permission) {

@@ -127,4 +127,17 @@ public class Faction extends Group {
             return (double) kills / deaths;
         }
     }
+
+    @Override
+    public Group copy() {
+        Faction copy = new Faction();
+        super.copyTo(copy);
+        copy.setTotalPower(this.totalPower);
+        copy.setPlayerPower(new HashMap<>(this.playerPower));
+        copy.setKills(this.kills);
+        copy.setDeaths(this.deaths);
+        copy.setRaidable(this.raidable);
+        copy.setLastRaidNotificationTimestamp(this.lastRaidNotificationTimestamp);
+        return copy;
+    }
 }

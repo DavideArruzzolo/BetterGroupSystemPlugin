@@ -27,9 +27,7 @@ public class DiplomacyService {
             return;
 
         if (!groupService.hasPerm(group, sender, Permission.CAN_MANAGE_DIPLOMACY)) {
-            // Access denied logic inside hasPerm usually?
-            // Let's assume groupService.hasPerm returns checking logic.
-            // If GroupService.hasPerm notifies, then we are good.
+
             return;
         }
 
@@ -46,7 +44,7 @@ public class DiplomacyService {
 
         if (status == DiplomacyStatus.ALLY) {
             groupService.notify(sender, "Alliance request sent (Not implemented fully).", false);
-            // In future: sending request logic
+
         } else {
             group.setDiplomacyStatus(target.getId(), status);
             groupService.saveGroups();
@@ -65,7 +63,7 @@ public class DiplomacyService {
         if (group.getDiplomaticRelations().isEmpty()) {
             msg.append("No diplomatic relations set.").withColor(Color.GRAY);
         } else {
-            // Group by status for better organization
+
             Map<DiplomacyStatus, List<Group>> relationsByStatus = new HashMap<>();
 
             group.getDiplomaticRelations().forEach((groupId, status) -> {
@@ -75,7 +73,6 @@ public class DiplomacyService {
                 }
             });
 
-            // Display allies first
             if (relationsByStatus.containsKey(DiplomacyStatus.ALLY)) {
                 msg.append("Allies:\n").withColor(Color.GREEN).withBold();
                 relationsByStatus.get(DiplomacyStatus.ALLY).forEach(ally -> msg.append("  ● ").withColor(Color.GREEN)
@@ -84,7 +81,6 @@ public class DiplomacyService {
                 msg.append("\n");
             }
 
-            // Display enemies
             if (relationsByStatus.containsKey(DiplomacyStatus.ENEMY)) {
                 msg.append("Enemies:\n").withColor(Color.RED).withBold();
                 relationsByStatus.get(DiplomacyStatus.ENEMY).forEach(enemy -> msg.append("  ● ").withColor(Color.RED)
@@ -93,12 +89,12 @@ public class DiplomacyService {
                 msg.append("\n");
             }
 
-            // Display neutral
             if (relationsByStatus.containsKey(DiplomacyStatus.NEUTRAL)) {
                 msg.append("Neutral:\n").withColor(Color.GRAY).withBold();
-                relationsByStatus.get(DiplomacyStatus.NEUTRAL).forEach(neutral -> msg.append("  ● ").withColor(Color.GRAY)
-                        .append(neutral.getName()).withColor(Color.GRAY)
-                        .append(" (" + neutral.getTag() + ")\n").withColor(Color.GRAY));
+                relationsByStatus.get(DiplomacyStatus.NEUTRAL)
+                        .forEach(neutral -> msg.append("  ● ").withColor(Color.GRAY)
+                                .append(neutral.getName()).withColor(Color.GRAY)
+                                .append(" (" + neutral.getTag() + ")\n").withColor(Color.GRAY));
             }
         }
         sender.sendMessage(msg.toMessage());

@@ -31,20 +31,21 @@ public class PowerDeathSystem extends DeathSystems.OnDeathSystem {
     }
 
     @Override
-    public void onComponentAdded(@Nonnull Ref ref, @Nonnull DeathComponent component, @Nonnull Store store, @Nonnull CommandBuffer commandBuffer) {
-        Player player = (Player) store.getComponent(ref, Player.getComponentType());
+    public void onComponentAdded(@Nonnull Ref<EntityStore> ref, @Nonnull DeathComponent component,
+                                 @Nonnull Store<EntityStore> store, @Nonnull CommandBuffer<EntityStore> commandBuffer) {
+        Player player = store.getComponent(ref, Player.getComponentType());
 
         if (player == null) {
             return;
         }
 
-        PlayerRef playerRef = (PlayerRef) store.getComponent(ref, PlayerRef.getComponentType());
+        PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
         if (playerRef == null) {
             return;
         }
 
         UUID victimId = playerRef.getUuid();
-        Group victimGroup = GroupService.getInstance(null).getPlayerGroup(victimId);
+        Group victimGroup = GroupService.getInstance().getPlayerGroup(victimId);
 
         if (!(victimGroup instanceof Faction victimFaction)) {
             return;
@@ -56,16 +57,14 @@ public class PowerDeathSystem extends DeathSystems.OnDeathSystem {
         victimFaction.removePlayerPower(victimId, powerLoss);
         victimFaction.incrementDeaths();
 
-        // Save the updated power data to JSON
-        GroupService.getInstance(null).saveGroups();
+        GroupService.getInstance().saveGroups();
 
         notificationService.sendNotification(victimId,
                 "You lost " + powerLoss + " power from death!", Default);
 
-        // Check if we have a recorded last attacker
-        UUID killerId = DamageTrackerSystem.lastAttackerMap.remove(victimId); // Remove after use
+        UUID killerId = DamageTrackerSystem.lastAttackerMap.remove(victimId);
         if (killerId != null) {
-            Group killerGroup = GroupService.getInstance(null).getPlayerGroup(killerId);
+            Group killerGroup = GroupService.getInstance().getPlayerGroup(killerId);
 
             if (killerGroup instanceof Faction killerFaction) {
                 if (!killerGroup.equals(victimGroup)) {
@@ -74,11 +73,11 @@ public class PowerDeathSystem extends DeathSystems.OnDeathSystem {
                     killerFaction.addPlayerPower(killerId, powerGain);
                     killerFaction.incrementKills();
 
-                    // Save the updated power data to JSON
-                    GroupService.getInstance(null).saveGroups();
+                    GroupService.getInstance().saveGroups();
 
                     notificationService.sendNotification(killerId,
-                            "You gained " + powerGain + " power from killing " + playerRef.getUsername() + "!", Default);
+                            "You gained " + powerGain + " power from killing " + playerRef.getUsername() + "!",
+                            Default);
                 }
             }
         }

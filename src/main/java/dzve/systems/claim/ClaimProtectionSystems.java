@@ -38,7 +38,7 @@ public class ClaimProtectionSystems {
         int chunkX = pos.x >> 5;
         int chunkZ = pos.z >> 5;
 
-        Group group = GroupService.getInstance(null).getGroupByChunk(worldName, chunkX, chunkZ);
+        Group group = GroupService.getInstance().getGroupByChunk(worldName, chunkX, chunkZ);
         if (group == null) {
             return false;
         }
@@ -48,10 +48,10 @@ public class ClaimProtectionSystems {
                 long currentTime = System.currentTimeMillis();
                 if (currentTime - faction.getLastRaidNotificationTimestamp() > RAID_NOTIFICATION_COOLDOWN) {
                     faction.setLastRaidNotificationTimestamp(currentTime);
-                    String raidMessage = "Your territory at " + worldName + " (" + chunkX + ", " + chunkZ + ") is being raided by " + player.getUsername() + "!";
-                    faction.getMembers().forEach(member ->
-                            notificationService.sendNotification(member.getPlayerId(), raidMessage, Danger)
-                    );
+                    String raidMessage = "Your territory at " + worldName + " (" + chunkX + ", " + chunkZ
+                            + ") is being raided by " + player.getUsername() + "!";
+                    faction.getMembers().forEach(
+                            member -> notificationService.sendNotification(member.getPlayerId(), raidMessage, Danger));
                 }
                 return false;
             }
@@ -62,7 +62,8 @@ public class ClaimProtectionSystems {
             return false;
         }
 
-        notificationService.sendNotification(player.getUuid(), "This territory is protected by " + group.getName(), Danger);
+        notificationService.sendNotification(player.getUuid(), "This territory is protected by " + group.getName(),
+                Danger);
         return true;
     }
 
@@ -72,7 +73,8 @@ public class ClaimProtectionSystems {
         }
 
         @Override
-        public void handle(int index, ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store, @NonNullDecl CommandBuffer<EntityStore> buf, UseBlockEvent.Pre event) {
+        public void handle(int index, ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store,
+                           @NonNullDecl CommandBuffer<EntityStore> buf, UseBlockEvent.Pre event) {
             Ref<EntityStore> ref = chunk.getReferenceTo(index);
             Vector3i pos = event.getTargetBlock();
             if (isProtected(store, ref, pos)) {
@@ -92,7 +94,8 @@ public class ClaimProtectionSystems {
         }
 
         @Override
-        public void handle(int index, ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store, @NonNullDecl CommandBuffer<EntityStore> buf, BreakBlockEvent event) {
+        public void handle(int index, ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store,
+                           @NonNullDecl CommandBuffer<EntityStore> buf, BreakBlockEvent event) {
             Ref<EntityStore> ref = chunk.getReferenceTo(index);
             Vector3i pos = event.getTargetBlock();
             if (isProtected(store, ref, pos)) {
@@ -112,7 +115,8 @@ public class ClaimProtectionSystems {
         }
 
         @Override
-        public void handle(int index, ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store, @NonNullDecl CommandBuffer<EntityStore> buf, PlaceBlockEvent event) {
+        public void handle(int index, ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store,
+                           @NonNullDecl CommandBuffer<EntityStore> buf, PlaceBlockEvent event) {
             Ref<EntityStore> ref = chunk.getReferenceTo(index);
             Vector3i pos = event.getTargetBlock();
             if (isProtected(store, ref, pos)) {
@@ -132,7 +136,8 @@ public class ClaimProtectionSystems {
         }
 
         @Override
-        public void handle(int index, ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store, @NonNullDecl CommandBuffer<EntityStore> buf, DamageBlockEvent event) {
+        public void handle(int index, ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store,
+                           @NonNullDecl CommandBuffer<EntityStore> buf, DamageBlockEvent event) {
             Ref<EntityStore> ref = chunk.getReferenceTo(index);
             Vector3i pos = event.getTargetBlock();
             if (isProtected(store, ref, pos)) {

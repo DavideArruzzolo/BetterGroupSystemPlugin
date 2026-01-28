@@ -13,11 +13,13 @@ public class ChatListener {
     public static void onPlayerChat(PlayerChatEvent event) {
         PlayerRef sender = event.getSender();
         UUID playerId = sender.getUuid();
-        GroupService manager = GroupService.getInstance(null);
+        GroupService manager = GroupService.getInstance();
         Group group = manager.getPlayerGroup(playerId);
         if (group != null) {
-            event.setFormatter((playerRef, message) ->
-                    Message.join(Message.raw("[").color(Color.GRAY), Message.raw(group.getTag()).color(group.getColor()), Message.raw("] ").color(Color.GRAY), Message.raw(sender.getUsername()).color(Color.WHITE), Message.raw(": " + message).color(Color.WHITE)));
+            event.setFormatter((playerRef, message) -> Message.join(Message.raw("[").color(Color.GRAY),
+                    Message.raw(group.getTag()).color(group.getColor()), Message.raw("] ").color(Color.GRAY),
+                    Message.raw(sender.getUsername()).color(Color.WHITE),
+                    Message.raw(": " + message).color(Color.WHITE)));
         }
 
     }

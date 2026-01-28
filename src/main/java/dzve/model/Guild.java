@@ -53,7 +53,6 @@ public class Guild extends Group {
         return super.removeMember(playerId);
     }
 
-
     public boolean canUpgrade() {
         return level < Arrays.stream(dzve.service.group.GroupService.getConfig().getGuildLevels()).max().orElse(1)
                 && getBankBalance() >= calculateCostToNextLevel();
@@ -62,5 +61,15 @@ public class Guild extends Group {
     public double calculateCostToNextLevel() {
         return dzve.service.group.GroupService.getConfig().getInitialPrice()
                 * Math.pow(dzve.service.group.GroupService.getConfig().getLevelPriceMultiplier(), level + 1);
+    }
+
+    @Override
+    public Group copy() {
+        Guild copy = new Guild();
+        super.copyTo(copy);
+        copy.setLevel(this.level);
+        copy.setMoneyToNextLevel(this.moneyToNextLevel);
+        copy.setMoneyContributions(new HashMap<>(this.moneyContributions));
+        return copy;
     }
 }

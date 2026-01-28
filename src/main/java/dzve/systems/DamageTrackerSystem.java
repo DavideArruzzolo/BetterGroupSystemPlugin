@@ -16,12 +16,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class DamageTrackerSystem extends DamageEventSystem {
 
-    // Track last attacker for each player - shared with PowerDeathSystem
     public static final Map<UUID, UUID> lastAttackerMap = new ConcurrentHashMap<>();
 
     @Override
-    public void handle(int index, @NonNullDecl ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store, @NonNullDecl CommandBuffer<EntityStore> buf, Damage damage) {
-        // Only track player-to-player damage
+    public void handle(int index, @NonNullDecl ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store,
+                       @NonNullDecl CommandBuffer<EntityStore> buf, Damage damage) {
         if (!(damage.getSource() instanceof Damage.EntitySource entitySource)) {
             return;
         }
@@ -42,12 +41,10 @@ public class DamageTrackerSystem extends DamageEventSystem {
             return;
         }
 
-        // Don't track self-damage
         if (victimPlayerRef.getUuid().equals(attackerPlayerRef.getUuid())) {
             return;
         }
 
-        // Record the attacker for the victim
         lastAttackerMap.put(victimPlayerRef.getUuid(), attackerPlayerRef.getUuid());
     }
 

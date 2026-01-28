@@ -220,4 +220,24 @@ public abstract class Group {
                 claim.getChunkZ() == chunkZ &&
                 claim.getWorld().equals(worldName));
     }
+
+    public abstract Group copy();
+
+    protected void copyTo(Group target) {
+        target.setId(this.id);
+        target.setName(this.name);
+        target.setTag(this.tag);
+        target.setDescription(this.description);
+        target.setColor(this.color);
+        target.setLeaderId(this.leaderId);
+        target.setBankBalance(this.bankBalance);
+        target.setCreatedAt(this.createdAt);
+
+        target.setHomes(this.homes.stream().map(GroupHome::copy).collect(java.util.stream.Collectors.toSet()));
+        target.setClaims(
+                this.claims.stream().map(GroupClaimedChunk::copy).collect(java.util.stream.Collectors.toSet()));
+        target.setMembers(this.members.stream().map(GroupMember::copy).collect(java.util.stream.Collectors.toSet()));
+        target.setRoles(this.roles.stream().map(GroupRole::copy).collect(java.util.stream.Collectors.toSet()));
+        target.setDiplomaticRelations(new HashMap<>(this.diplomaticRelations));
+    }
 }

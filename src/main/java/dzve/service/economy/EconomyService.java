@@ -58,7 +58,7 @@ public class EconomyService {
 
         group.deposit(amount, sender.getUuid());
         if (group instanceof dzve.model.Guild guild) {
-            guild.getMoneyContributions().merge(sender.getUuid(), amount, Double::sum);
+            guild.getMoneyContributions().merge(sender.getUuid(), amount, (a, b) -> a + b);
         }
 
         groupService.saveGroups();
@@ -85,7 +85,7 @@ public class EconomyService {
         group.withdraw(amount, sender.getUuid());
         group.depositToGroup(amount);
         if (group instanceof dzve.model.Guild guild) {
-            guild.getMoneyContributions().merge(sender.getUuid(), amount, Double::sum);
+            guild.getMoneyContributions().merge(sender.getUuid(), amount, (a, b) -> a + b);
         }
 
         groupService.saveGroups();

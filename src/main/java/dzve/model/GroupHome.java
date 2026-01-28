@@ -39,4 +39,17 @@ public class GroupHome {
         this.yaw = yaw;
         this.pitch = pitch;
     }
+
+    public GroupHome copy() {
+        return GroupHome.builder()
+                .id(this.id)
+                .name(this.name)
+                .world(this.world)
+                .x(this.x)
+                .y(this.y)
+                .z(this.z)
+                .yaw(this.yaw)
+                .pitch(this.pitch)
+                .build();
+    }
 }

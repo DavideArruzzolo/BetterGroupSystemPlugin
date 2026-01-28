@@ -27,4 +27,13 @@ public class GroupClaimedChunk {
         this.chunkZ = chunkZ;
         this.world = world;
     }
+
+    public GroupClaimedChunk copy() {
+        return GroupClaimedChunk.builder()
+                .id(this.id)
+                .chunkX(this.chunkX)
+                .chunkZ(this.chunkZ)
+                .world(this.world)
+                .build();
+    }
 }

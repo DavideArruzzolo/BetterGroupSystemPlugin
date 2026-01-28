@@ -44,7 +44,8 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
     protected void setup() {
         LOGGER.atInfo().log("Setting up plugin " + this.getName());
         LOGGER.atInfo().log("Plugin mode: " + config.get().getPluginMode());
-        groupService = GroupService.getInstance(config.get());
+        GroupService.initialize(config.get());
+        groupService = GroupService.getInstance();
         baseGroupCommand = new BaseGroupCommand(config.get());
         this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.PlaceBlockProtectionSystem());
         this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.BreakBlockProtectionSystem());

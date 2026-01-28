@@ -34,4 +34,16 @@ public class GroupMember {
         this.lastActive = LocalDateTime.now();
         this.joinDate = LocalDateTime.now();
     }
+
+    public GroupMember copy() {
+        return GroupMember.builder()
+                .playerId(this.playerId)
+                .playerName(this.playerName)
+                .roleId(this.roleId)
+                .joinDate(this.joinDate)
+                .lastActive(this.lastActive)
+                .defaultHome(this.defaultHome)
+                .bankBalance(this.bankBalance)
+                .build();
+    }
 }

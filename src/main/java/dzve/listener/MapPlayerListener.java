@@ -25,7 +25,7 @@ public class MapPlayerListener {
         if (uuidComponent == null)
             return;
         UUID playerUuid = uuidComponent.getUuid();
-        GroupService service = GroupService.getInstance(null);
+        GroupService service = GroupService.getInstance();
 
         MapUtils.updateMapFilter(mapTracker, playerUuid, service);
     }

@@ -9,13 +9,13 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.util.NotificationUtil;
 import dzve.config.BetterGroupSystemPluginConfig;
+import dzve.service.group.GroupService;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
 public final class NotificationService {
-    private static final String DEFAULT_ICON = "Weapon_Sword_Nexus";
     private static final NotificationService istance = new NotificationService();
 
     public static NotificationService getInstance() {
@@ -33,7 +33,8 @@ public final class NotificationService {
         Objects.requireNonNull(message, "Secondary message cannot be null");
 
         String prefix = buildNotificationPrefix(style);
-        sendCustomNotification(playerUuid, message, prefix, DEFAULT_ICON, style);
+        String icon = GroupService.getConfig().getNotificationIcon();
+        sendCustomNotification(playerUuid, message, prefix, icon, style);
     }
 
     public void sendCustomNotification(UUID playerUuid, String primaryMessage, String secondaryMessage,

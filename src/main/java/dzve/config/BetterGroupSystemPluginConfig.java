@@ -12,41 +12,112 @@ public class BetterGroupSystemPluginConfig {
     public static final String DATA_FOLDER = "mods/Dzve_BetterGroupSystemPlugin/data";
     public static final String FILE_NAME = "groups.json";
 
-    public static final BuilderCodec<BetterGroupSystemPluginConfig> CODEC =
-            BuilderCodec.builder(BetterGroupSystemPluginConfig.class, BetterGroupSystemPluginConfig::new)
-                    .append(new KeyedCodec<>("PluginMode", STRING), (cfg, val, info) -> cfg.setPluginMode(val), (cfg, info) -> cfg.getPluginMode()).add()
-                    .append(new KeyedCodec<>("AllowedWorlds", STRING), (cfg, val, info) -> cfg.setAllowedWorlds(val), (cfg, info) -> cfg.getAllowedWorlds()).add()
-                    .append(new KeyedCodec<>("AllCommandsPrefix", STRING), (cfg, val, info) -> cfg.setAllCommandsPrefix(val), (cfg, info) -> cfg.getAllCommandsPrefix()).add()
-                    .append(new KeyedCodec<>("HidePlayers", BOOLEAN), (cfg, val, info) -> cfg.setHidePlayers(val), (cfg, info) -> cfg.isHidePlayers()).add()
-                    .append(new KeyedCodec<>("MaxSize", INTEGER), (cfg, val, info) -> cfg.setMaxSize(val), (cfg, info) -> cfg.getMaxSize()).add()
-                    .append(new KeyedCodec<>("MinNameLength", INTEGER), (cfg, val, info) -> cfg.setMinNameLength(val), (cfg, info) -> cfg.getMinNameLength()).add()
-                    .append(new KeyedCodec<>("MaxNameLength", INTEGER), (cfg, val, info) -> cfg.setMaxNameLength(val), (cfg, info) -> cfg.getMaxNameLength()).add()
-                    .append(new KeyedCodec<>("MinTagLength", INTEGER), (cfg, val, info) -> cfg.setMinTagLength(val), (cfg, info) -> cfg.getMinTagLength()).add()
-                    .append(new KeyedCodec<>("MaxTagLength", INTEGER), (cfg, val, info) -> cfg.setMaxTagLength(val), (cfg, info) -> cfg.getMaxTagLength()).add()
-                    .append(new KeyedCodec<>("MaxDescriptionLength", INTEGER), (cfg, val, info) -> cfg.setMaxDescriptionLength(val), (cfg, info) -> cfg.getMaxDescriptionLength()).add()
-                    .append(new KeyedCodec<>("DisablePowerSystemDetails", BOOLEAN), (cfg, val, info) -> cfg.setDisablePowerSystemDetails(val), (cfg, info) -> cfg.isDisablePowerSystemDetails()).add()
-                    .append(new KeyedCodec<>("PlayerInitialPower", DOUBLE), (cfg, val, info) -> cfg.setPlayerInitialPower(val), (cfg, info) -> cfg.getPlayerInitialPower()).add()
-                    .append(new KeyedCodec<>("PlayerPowerMax", DOUBLE), (cfg, val, info) -> cfg.setPlayerPowerMax(val), (cfg, info) -> cfg.getPlayerPowerMax()).add()
-                    .append(new KeyedCodec<>("PlayerPowerMin", DOUBLE), (cfg, val, info) -> cfg.setPlayerPowerMin(val), (cfg, info) -> cfg.getPlayerPowerMin()).add()
-                    .append(new KeyedCodec<>("PowerGainByKill", DOUBLE), (cfg, val, info) -> cfg.setPowerGainByKill(val), (cfg, info) -> cfg.getPowerGainByKill()).add()
-                    .append(new KeyedCodec<>("PowerGainByTime", DOUBLE), (cfg, val, info) -> cfg.setPowerGainByTime(val), (cfg, info) -> cfg.getPowerGainByTime()).add()
-                    .append(new KeyedCodec<>("PowerLooseByDeath", DOUBLE), (cfg, val, info) -> cfg.setPowerLooseByDeath(val), (cfg, info) -> cfg.getPowerLooseByDeath()).add()
-                    .append(new KeyedCodec<>("PowerRegenOffline", DOUBLE), (cfg, val, info) -> cfg.setPowerRegenOffline(val), (cfg, info) -> cfg.getPowerRegenOffline()).add()
-                    .append(new KeyedCodec<>("ClaimRatio", DOUBLE), (cfg, val, info) -> cfg.setClaimRatio(val), (cfg, info) -> cfg.getClaimRatio()).add()
-                    .append(new KeyedCodec<>("MaxClaimsPerFaction", INTEGER), (cfg, val, info) -> cfg.setMaxClaimsPerFaction(val), (cfg, info) -> cfg.getMaxClaimsPerFaction()).add()
-                    .append(new KeyedCodec<>("GuildLevels", INT_ARRAY), (cfg, val, info) -> cfg.setGuildLevels(val), (cfg, info) -> cfg.getGuildLevels()).add()
-                    .append(new KeyedCodec<>("LevelPriceMultiplier", DOUBLE), (cfg, val, info) -> cfg.setLevelPriceMultiplier(val), (cfg, info) -> cfg.getLevelPriceMultiplier()).add()
-                    .append(new KeyedCodec<>("InitialPrice", DOUBLE), (cfg, val, info) -> cfg.setInitialPrice(val), (cfg, info) -> cfg.getInitialPrice()).add()
-                    .append(new KeyedCodec<>("SlotQuantityGainForLevel", INTEGER), (cfg, val, info) -> cfg.setSlotQuantityGainForLevel(val), (cfg, info) -> cfg.getSlotQuantityGainForLevel()).add()
-                    .append(new KeyedCodec<>("EnableTax", BOOLEAN), (cfg, val, info) -> cfg.setEnableTax(val), (cfg, info) -> cfg.isEnableTax()).add()
-                    .append(new KeyedCodec<>("TaxImport", DOUBLE), (cfg, val, info) -> cfg.setTaxImport(val), (cfg, info) -> cfg.getTaxImport()).add()
-                    .append(new KeyedCodec<>("TaxInterval", DOUBLE), (cfg, val, info) -> cfg.setTaxInterval(val), (cfg, info) -> cfg.getTaxInterval()).add()
-                    .append(new KeyedCodec<>("MaxLatePayment", INTEGER), (cfg, val, info) -> cfg.setMaxLatePayment(val), (cfg, info) -> cfg.getMaxLatePayment()).add()
-                    .append(new KeyedCodec<>("LatePayAction", STRING), (cfg, val, info) -> cfg.setLatePayAction(val), (cfg, info) -> cfg.getLatePayAction()).add()
-                    .append(new KeyedCodec<>("LatePayGracePeriod", DOUBLE), (cfg, val, info) -> cfg.setLatePayGracePeriod(val), (cfg, info) -> cfg.getLatePayGracePeriod()).add()
-                    .append(new KeyedCodec<>("MaxHome", INTEGER), (cfg, val, info) -> cfg.setMaxHome(val), (cfg, info) -> cfg.getMaxHome()).add()
-                    .append(new KeyedCodec<>("ChatMessageMaxLength", INTEGER), (cfg, val, info) -> cfg.setChatMessageMaxLength(val), (cfg, info) -> cfg.getChatMessageMaxLength()).add()
-                    .append(new KeyedCodec<>("PvpEnabled", BOOLEAN), (cfg, val, info) -> cfg.setPvpEnabled(val), (cfg, info) -> cfg.isPvpEnabled()).add().build();
+    public static final BuilderCodec<BetterGroupSystemPluginConfig> CODEC = BuilderCodec
+            .builder(BetterGroupSystemPluginConfig.class, BetterGroupSystemPluginConfig::new)
+            .append(new KeyedCodec<>("PluginMode", STRING), (cfg, val, info) -> cfg.setPluginMode(val),
+                    (cfg, info) -> cfg.getPluginMode())
+            .add()
+            .append(new KeyedCodec<>("AllowedWorlds", STRING), (cfg, val, info) -> cfg.setAllowedWorlds(val),
+                    (cfg, info) -> cfg.getAllowedWorlds())
+            .add()
+            .append(new KeyedCodec<>("AllCommandsPrefix", STRING), (cfg, val, info) -> cfg.setAllCommandsPrefix(val),
+                    (cfg, info) -> cfg.getAllCommandsPrefix())
+            .add()
+            .append(new KeyedCodec<>("HidePlayers", BOOLEAN), (cfg, val, info) -> cfg.setHidePlayers(val),
+                    (cfg, info) -> cfg.isHidePlayers())
+            .add()
+            .append(new KeyedCodec<>("MaxSize", INTEGER), (cfg, val, info) -> cfg.setMaxSize(val),
+                    (cfg, info) -> cfg.getMaxSize())
+            .add()
+            .append(new KeyedCodec<>("MinNameLength", INTEGER), (cfg, val, info) -> cfg.setMinNameLength(val),
+                    (cfg, info) -> cfg.getMinNameLength())
+            .add()
+            .append(new KeyedCodec<>("MaxNameLength", INTEGER), (cfg, val, info) -> cfg.setMaxNameLength(val),
+                    (cfg, info) -> cfg.getMaxNameLength())
+            .add()
+            .append(new KeyedCodec<>("MinTagLength", INTEGER), (cfg, val, info) -> cfg.setMinTagLength(val),
+                    (cfg, info) -> cfg.getMinTagLength())
+            .add()
+            .append(new KeyedCodec<>("MaxTagLength", INTEGER), (cfg, val, info) -> cfg.setMaxTagLength(val),
+                    (cfg, info) -> cfg.getMaxTagLength())
+            .add()
+            .append(new KeyedCodec<>("MaxDescriptionLength", INTEGER),
+                    (cfg, val, info) -> cfg.setMaxDescriptionLength(val), (cfg, info) -> cfg.getMaxDescriptionLength())
+            .add()
+            .append(new KeyedCodec<>("DisablePowerSystemDetails", BOOLEAN),
+                    (cfg, val, info) -> cfg.setDisablePowerSystemDetails(val),
+                    (cfg, info) -> cfg.isDisablePowerSystemDetails())
+            .add()
+            .append(new KeyedCodec<>("PlayerInitialPower", DOUBLE), (cfg, val, info) -> cfg.setPlayerInitialPower(val),
+                    (cfg, info) -> cfg.getPlayerInitialPower())
+            .add()
+            .append(new KeyedCodec<>("PlayerPowerMax", DOUBLE), (cfg, val, info) -> cfg.setPlayerPowerMax(val),
+                    (cfg, info) -> cfg.getPlayerPowerMax())
+            .add()
+            .append(new KeyedCodec<>("PlayerPowerMin", DOUBLE), (cfg, val, info) -> cfg.setPlayerPowerMin(val),
+                    (cfg, info) -> cfg.getPlayerPowerMin())
+            .add()
+            .append(new KeyedCodec<>("PowerGainByKill", DOUBLE), (cfg, val, info) -> cfg.setPowerGainByKill(val),
+                    (cfg, info) -> cfg.getPowerGainByKill())
+            .add()
+            .append(new KeyedCodec<>("PowerGainByTime", DOUBLE), (cfg, val, info) -> cfg.setPowerGainByTime(val),
+                    (cfg, info) -> cfg.getPowerGainByTime())
+            .add()
+            .append(new KeyedCodec<>("PowerLooseByDeath", DOUBLE), (cfg, val, info) -> cfg.setPowerLooseByDeath(val),
+                    (cfg, info) -> cfg.getPowerLooseByDeath())
+            .add()
+            .append(new KeyedCodec<>("PowerRegenOffline", DOUBLE), (cfg, val, info) -> cfg.setPowerRegenOffline(val),
+                    (cfg, info) -> cfg.getPowerRegenOffline())
+            .add()
+            .append(new KeyedCodec<>("ClaimRatio", DOUBLE), (cfg, val, info) -> cfg.setClaimRatio(val),
+                    (cfg, info) -> cfg.getClaimRatio())
+            .add()
+            .append(new KeyedCodec<>("MaxClaimsPerFaction", INTEGER),
+                    (cfg, val, info) -> cfg.setMaxClaimsPerFaction(val), (cfg, info) -> cfg.getMaxClaimsPerFaction())
+            .add()
+            .append(new KeyedCodec<>("GuildLevels", INT_ARRAY), (cfg, val, info) -> cfg.setGuildLevels(val),
+                    (cfg, info) -> cfg.getGuildLevels())
+            .add()
+            .append(new KeyedCodec<>("LevelPriceMultiplier", DOUBLE),
+                    (cfg, val, info) -> cfg.setLevelPriceMultiplier(val), (cfg, info) -> cfg.getLevelPriceMultiplier())
+            .add()
+            .append(new KeyedCodec<>("InitialPrice", DOUBLE), (cfg, val, info) -> cfg.setInitialPrice(val),
+                    (cfg, info) -> cfg.getInitialPrice())
+            .add()
+            .append(new KeyedCodec<>("SlotQuantityGainForLevel", INTEGER),
+                    (cfg, val, info) -> cfg.setSlotQuantityGainForLevel(val),
+                    (cfg, info) -> cfg.getSlotQuantityGainForLevel())
+            .add()
+            .append(new KeyedCodec<>("EnableTax", BOOLEAN), (cfg, val, info) -> cfg.setEnableTax(val),
+                    (cfg, info) -> cfg.isEnableTax())
+            .add()
+            .append(new KeyedCodec<>("TaxImport", DOUBLE), (cfg, val, info) -> cfg.setTaxImport(val),
+                    (cfg, info) -> cfg.getTaxImport())
+            .add()
+            .append(new KeyedCodec<>("TaxInterval", DOUBLE), (cfg, val, info) -> cfg.setTaxInterval(val),
+                    (cfg, info) -> cfg.getTaxInterval())
+            .add()
+            .append(new KeyedCodec<>("MaxLatePayment", INTEGER), (cfg, val, info) -> cfg.setMaxLatePayment(val),
+                    (cfg, info) -> cfg.getMaxLatePayment())
+            .add()
+            .append(new KeyedCodec<>("LatePayAction", STRING), (cfg, val, info) -> cfg.setLatePayAction(val),
+                    (cfg, info) -> cfg.getLatePayAction())
+            .add()
+            .append(new KeyedCodec<>("LatePayGracePeriod", DOUBLE), (cfg, val, info) -> cfg.setLatePayGracePeriod(val),
+                    (cfg, info) -> cfg.getLatePayGracePeriod())
+            .add()
+            .append(new KeyedCodec<>("MaxHome", INTEGER), (cfg, val, info) -> cfg.setMaxHome(val),
+                    (cfg, info) -> cfg.getMaxHome())
+            .add()
+            .append(new KeyedCodec<>("ChatMessageMaxLength", INTEGER),
+                    (cfg, val, info) -> cfg.setChatMessageMaxLength(val), (cfg, info) -> cfg.getChatMessageMaxLength())
+            .add()
+            .append(new KeyedCodec<>("PvpEnabled", BOOLEAN), (cfg, val, info) -> cfg.setPvpEnabled(val),
+                    (cfg, info) -> cfg.isPvpEnabled())
+            .add()
+            .append(new KeyedCodec<>("NotificationIcon", STRING), (cfg, val, info) -> cfg.setNotificationIcon(val),
+                    (cfg, info) -> cfg.getNotificationIcon())
+            .add().build();
 
     private static BetterGroupSystemPluginConfig instance;
 
@@ -83,4 +154,5 @@ public class BetterGroupSystemPluginConfig {
     private int maxHome = 5;
     private int chatMessageMaxLength = 40;
     private boolean pvpEnabled = true;
+    private String notificationIcon = "Weapon_Sword_Nexus";
 }

@@ -32,16 +32,12 @@ public class TerritoryService {
 
     private final GroupService groupService;
     private final NotificationService notificationService;
-    // Cache for O(1) chunk lookup: key="worldName:x:z", value=groupId
-    private final Map<String, UUID> chunkOwnerCache = new ConcurrentHashMap<>();
+
+    private final Map<ChunkKey, UUID> chunkOwnerCache = new ConcurrentHashMap<>();
 
     public TerritoryService(GroupService groupService) {
         this.groupService = groupService;
         this.notificationService = NotificationService.getInstance();
-    }
-
-    private String getChunkKey(String worldName, int x, int z) {
-        return worldName + ":" + x + ":" + z;
     }
 
     public void clearCache() {
@@ -50,24 +46,24 @@ public class TerritoryService {
 
     public void cacheGroupClaims(Group group) {
         group.getClaims().forEach(claim -> chunkOwnerCache
-                .put(getChunkKey(claim.getWorld(), claim.getChunkX(), claim.getChunkZ()), group.getId()));
+                .put(new ChunkKey(claim.getWorld(), claim.getChunkX(), claim.getChunkZ()), group.getId()));
     }
 
     public void uncacheGroupClaims(Group group) {
         group.getClaims().forEach(
-                claim -> chunkOwnerCache.remove(getChunkKey(claim.getWorld(), claim.getChunkX(), claim.getChunkZ())));
+                claim -> chunkOwnerCache.remove(new ChunkKey(claim.getWorld(), claim.getChunkX(), claim.getChunkZ())));
     }
 
     public void cacheChunkOwner(String world, int x, int z, UUID groupId) {
-        chunkOwnerCache.put(getChunkKey(world, x, z), groupId);
+        chunkOwnerCache.put(new ChunkKey(world, x, z), groupId);
     }
 
     public void removeChunkOwner(String world, int x, int z) {
-        chunkOwnerCache.remove(getChunkKey(world, x, z));
+        chunkOwnerCache.remove(new ChunkKey(world, x, z));
     }
 
     public Group getGroupByChunk(String worldName, int chunkX, int chunkZ) {
-        UUID groupId = chunkOwnerCache.get(getChunkKey(worldName, chunkX, chunkZ));
+        UUID groupId = chunkOwnerCache.get(new ChunkKey(worldName, chunkX, chunkZ));
         return groupId != null ? groupService.getGroup(groupId) : null;
     }
 
@@ -116,7 +112,7 @@ public class TerritoryService {
         }
 
         chunkInfo.group.addClaim(new GroupClaimedChunk(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
-        chunkOwnerCache.put(getChunkKey(chunkInfo.world, chunkInfo.cx, chunkInfo.cz), chunkInfo.group.getId());
+        chunkOwnerCache.put(new ChunkKey(chunkInfo.world, chunkInfo.cx, chunkInfo.cz), chunkInfo.group.getId());
         groupService.saveGroups();
         groupService.notify(sender, "Land claimed!", false);
     }
@@ -124,10 +120,10 @@ public class TerritoryService {
     private void convertChunkFromRaidable(Group raidableFaction, Group newOwner, ChunkInfo chunkInfo,
                                           PlayerRef sender) {
         raidableFaction.removeClaim(chunkInfo.cx, chunkInfo.cz, chunkInfo.world);
-        chunkOwnerCache.remove(getChunkKey(chunkInfo.world, chunkInfo.cx, chunkInfo.cz));
+        chunkOwnerCache.remove(new ChunkKey(chunkInfo.world, chunkInfo.cx, chunkInfo.cz));
 
         newOwner.addClaim(new GroupClaimedChunk(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
-        chunkOwnerCache.put(getChunkKey(chunkInfo.world, chunkInfo.cx, chunkInfo.cz), newOwner.getId());
+        chunkOwnerCache.put(new ChunkKey(chunkInfo.world, chunkInfo.cx, chunkInfo.cz), newOwner.getId());
 
         groupService.saveGroups();
 
@@ -238,7 +234,7 @@ public class TerritoryService {
         }
 
         chunkInfo.group.removeClaim(chunkInfo.cx, chunkInfo.cz, world.getName());
-        chunkOwnerCache.remove(getChunkKey(world.getName(), chunkInfo.cx, chunkInfo.cz));
+        chunkOwnerCache.remove(new ChunkKey(world.getName(), chunkInfo.cx, chunkInfo.cz));
         groupService.saveGroups();
         groupService.notify(sender, "Land unclaimed.", false);
     }
@@ -413,19 +409,16 @@ public class TerritoryService {
         int playerChunkZ = (int) player.getTransform().getPosition().getZ() >> 5;
         String worldName = world.getName();
 
-        // Map dimensions
-        int horizontalRadius = 21; // 4 chunks horizontally = 9x5 grid
-        int verticalRadius = 6; // 2 chunks vertically
+        int horizontalRadius = 21;
+        int verticalRadius = 6;
         int mapWidth = horizontalRadius * 2 + 1;
         int mapHeight = verticalRadius * 2 + 1;
 
-        // Build the map
         StringBuilder[] mapLines = new StringBuilder[mapHeight];
         for (int i = 0; i < mapHeight; i++) {
             mapLines[i] = new StringBuilder();
         }
 
-        // Generate map content
         for (int z = -verticalRadius; z <= verticalRadius; z++) {
             for (int x = -horizontalRadius; x <= horizontalRadius; x++) {
                 int chunkX = playerChunkX + x;
@@ -433,7 +426,7 @@ public class TerritoryService {
 
                 String symbol;
                 if (x == 0 && z == 0) {
-                    symbol = "@"; // Player position
+                    symbol = "@";
                 } else {
                     Group chunkOwner = getGroupByChunk(worldName, chunkX, chunkZ);
                     symbol = getChunkSymbol(chunkOwner, playerGroup);
@@ -443,10 +436,8 @@ public class TerritoryService {
             }
         }
 
-        // Display the map
         sendMapMessage(player, "==================== CLAIM MAP ====================");
 
-        // Map rows with simpler borders
         for (StringBuilder line : mapLines) {
             sendMapMessage(player, line.toString());
         }
@@ -461,20 +452,18 @@ public class TerritoryService {
 
     private String getChunkSymbol(Group chunkOwner, Group playerGroup) {
         if (chunkOwner == null) {
-            return "-"; // Wilderness
+            return "-";
         }
 
         if (chunkOwner.equals(playerGroup)) {
-            return "O"; // Own
+            return "O";
         }
 
-        // Check if ally or enemy
-        // Assuming GroupService or Diplomacy handles status logic directly
         dzve.model.DiplomacyStatus status = playerGroup.getDiplomacyStatus(chunkOwner.getId());
         return switch (status) {
-            case ALLY -> "A"; // Ally
-            case ENEMY -> "E"; // Enemy
-            default -> "E"; // Default to enemy for non-allied groups
+            case ALLY -> "A";
+            case ENEMY -> "E";
+            default -> "E";
         };
     }
 

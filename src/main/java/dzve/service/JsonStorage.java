@@ -9,9 +9,6 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -21,7 +18,6 @@ public class JsonStorage<T> {
     private final File file;
     private final Class<T> type;
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     public JsonStorage(File file, Class<T> type) {
         this.file = file;
@@ -50,11 +46,7 @@ public class JsonStorage<T> {
         }
     }
 
-    public void saveAsync(T data) {
-        executor.submit(() -> saveSync(data));
-    }
-
-    public void saveSync(T data) {
+    public void save(T data) {
         lock.writeLock().lock();
         try {
             File tempFile = new File(file.getAbsolutePath() + ".tmp");
@@ -96,7 +88,9 @@ public class JsonStorage<T> {
                  InputStreamReader isr = new InputStreamReader(fis, StandardCharsets.UTF_8)) {
                 return objectMapper.readValue(isr, type);
             } catch (Exception e) {
-                LOGGER.atSevere().withCause(e).log("Failed to load data from {}. Detected corruption or error. Attempting recovery...", file.getAbsolutePath());
+                LOGGER.atSevere().withCause(e).log(
+                        "Failed to load data from {}. Detected corruption or error. Attempting recovery...",
+                        file.getAbsolutePath());
                 return attemptRecovery();
             }
         } finally {
@@ -132,14 +126,5 @@ public class JsonStorage<T> {
     }
 
     public void shutdown() {
-        executor.shutdown();
-        try {
-            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
-                executor.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            executor.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
     }
 }
