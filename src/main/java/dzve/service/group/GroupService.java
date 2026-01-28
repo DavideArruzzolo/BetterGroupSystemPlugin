@@ -8,18 +8,21 @@ import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.command.system.arguments.types.Coord;
+import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.teleport.Teleport;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.WorldMapTracker;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.model.*;
 import dzve.service.JsonStorage;
 import dzve.service.NotificationService;
 import dzve.utils.ChatFormatter;
+import dzve.utils.MapUtils;
 
 import javax.annotation.Nullable;
 import java.awt.*;
@@ -156,12 +159,19 @@ public class GroupService {
         groups.put(group.getId(), group);
         cacheGroupData(group);
         saveGroups();
+        
+        // Aggiorna la mappa per il creatore del gruppo
+        updateGroupMaps(group);
+        
         notify(player, "Group created successfully!", false);
     }
 
     public void disband(PlayerRef player) {
         Group group = getGroupOrNotify(player);
         if (group == null || !isLeader(group, player)) return;
+
+        // Aggiorna la mappa per tutti i membri prima di eliminare il gruppo
+        updateGroupMaps(group);
 
         namesGroups.remove(group.getName().toLowerCase());
         tagsGroups.remove(group.getTag().toLowerCase());
@@ -187,6 +197,9 @@ public class GroupService {
             playerGroupMap.remove(player.getUuid());
             saveGroups();
             notify(player, "You left the group.", false);
+
+            // Aggiorna la mappa per tutti i membri rimanenti del gruppo
+            updateGroupMaps(group);
         }
     }
 
@@ -257,6 +270,11 @@ public class GroupService {
             }
         }
         saveGroups();
+        
+        // Aggiorna la mappa per tutti i membri del gruppo quando nome/tag cambiano
+        if ("name".equals(type.toLowerCase()) || "tag".equals(type.toLowerCase())) {
+            updateGroupMaps(group);
+        }
     }
 
     public void transferLeadership(PlayerRef sender, UUID targetId) {
@@ -305,6 +323,9 @@ public class GroupService {
         invites.remove(group.getId());
         saveGroups();
         notify(player, "Joined " + group.getName(), false);
+
+        // Aggiorna la mappa per tutti i membri del gruppo
+        updateGroupMaps(group);
     }
 
     public void kickMember(PlayerRef sender, UUID targetId) {
@@ -328,6 +349,9 @@ public class GroupService {
         playerGroupMap.remove(targetId);
         saveGroups();
         notify(sender, "Member kicked.", false);
+
+        // Aggiorna la mappa per tutti i membri rimanenti del gruppo
+        updateGroupMaps(group);
     }
 
     public void setHome(PlayerRef sender, String name, World world) {
@@ -1206,4 +1230,26 @@ public class GroupService {
 
     private record ChunkInfo(Group group, int cx, int cz, String world) {
     }
+
+    public void updateGroupMaps(Group group) {
+        if (group == null) return;
+
+        Universe universe = Universe.get();
+        if (universe == null) return;
+
+
+        // Per ogni membro del gruppo, aggiorna il filtro della mappa
+        for (GroupMember member : group.getMembers()) {
+            universe.getPlayers().forEach(playerRef -> {
+                if (playerRef.getUuid().equals(member.getPlayerId())) {
+                    Player player = playerRef.getReference().getStore().getComponent(playerRef.getReference(), Player.getComponentType());
+                    WorldMapTracker mapTracker = player.getWorldMapTracker();
+                    if (mapTracker != null) {
+                        MapUtils.updateMapFilter(mapTracker, member.getPlayerId(), this);
+                    }
+                }
+            });
+        }
+    }
+
 }

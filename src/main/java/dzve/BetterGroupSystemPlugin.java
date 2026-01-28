@@ -44,14 +44,15 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
     protected void setup() {
         LOGGER.atInfo().log("Setting up plugin " + this.getName());
         LOGGER.atInfo().log("Plugin mode: " + config.get().getPluginMode());
+        groupService = GroupService.getInstance(config.get());
         baseGroupCommand = new BaseGroupCommand(config.get());
         this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.PlaceBlockProtectionSystem());
         this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.BreakBlockProtectionSystem());
         this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.UseBlockProtectionSystem());
 
         this.getCommandRegistry().registerCommand(baseGroupCommand);
-        this.getCommandRegistry().registerCommand(new ChatGroupCommand(GroupService.getInstance(null)));
-        this.getCommandRegistry().registerCommand(new ChatAllayCommand(GroupService.getInstance(null)));
+        this.getCommandRegistry().registerCommand(new ChatGroupCommand(groupService));
+        this.getCommandRegistry().registerCommand(new ChatAllayCommand(groupService));
     }
 
     @Override
@@ -71,7 +72,9 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
 
     @Override
     protected void shutdown() {
-        groupService.shutdown();
+        if (groupService != null) {
+            groupService.shutdown();
+        }
         LOGGER.atInfo().log("Shutdown up plugin " + this.getName());
     }
 

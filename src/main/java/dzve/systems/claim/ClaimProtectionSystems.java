@@ -5,6 +5,7 @@ import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.EntityEventSystem;
 import com.hypixel.hytale.math.vector.Vector3i;
 import com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent;
+import com.hypixel.hytale.server.core.event.events.ecs.DamageBlockEvent;
 import com.hypixel.hytale.server.core.event.events.ecs.PlaceBlockEvent;
 import com.hypixel.hytale.server.core.event.events.ecs.UseBlockEvent;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
@@ -112,6 +113,26 @@ public class ClaimProtectionSystems {
 
         @Override
         public void handle(int index, ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store, @NonNullDecl CommandBuffer<EntityStore> buf, PlaceBlockEvent event) {
+            Ref<EntityStore> ref = chunk.getReferenceTo(index);
+            Vector3i pos = event.getTargetBlock();
+            if (isProtected(store, ref, pos)) {
+                event.setCancelled(true);
+            }
+        }
+
+        @Override
+        public Query<EntityStore> getQuery() {
+            return Archetype.empty();
+        }
+    }
+
+    public static class DamageBlockProtectionSystem extends EntityEventSystem<EntityStore, DamageBlockEvent> {
+        public DamageBlockProtectionSystem() {
+            super(DamageBlockEvent.class);
+        }
+
+        @Override
+        public void handle(int index, ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store, @NonNullDecl CommandBuffer<EntityStore> buf, DamageBlockEvent event) {
             Ref<EntityStore> ref = chunk.getReferenceTo(index);
             Vector3i pos = event.getTargetBlock();
             if (isProtected(store, ref, pos)) {
