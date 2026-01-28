@@ -22,8 +22,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ClaimAlertSystem extends EntityTickingSystem<EntityStore> {
-
-    private static final Message SUBTITLE_MESSAGE = Message.raw("BetterGroupSystem");
     private final Map<UUID, String> playerLastTitle = new ConcurrentHashMap<>();
 
     public Query<EntityStore> getQuery() {

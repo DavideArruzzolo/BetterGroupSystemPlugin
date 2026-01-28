@@ -25,8 +25,9 @@ public class PvPProtectionSystem extends DamageEventSystem {
         this.config = config;
     }
 
-    public void handle(int index, @NonNullDecl ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store, @NonNullDecl CommandBuffer<EntityStore> buf, @NonNullDecl Damage damage) {
-        if (!config.get().isPvpEnabled()) {
+    public void handle(int index, @NonNullDecl ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store,
+                       @NonNullDecl CommandBuffer<EntityStore> buf, @NonNullDecl Damage damage) {
+        if (config.get().isPvpEnabled()) {
             Ref<EntityStore> victimRef = chunk.getReferenceTo(index);
             PlayerRef victim = store.getComponent(victimRef, PlayerRef.getComponentType());
             if (victim != null) {
@@ -41,10 +42,12 @@ public class PvPProtectionSystem extends DamageEventSystem {
                         if (victimGroup != null && attackerGroup != null) {
                             if (victimGroup.getId().equals(attackerGroup.getId())) {
                                 damage.setCancelled(true);
-                                attacker.sendMessage(Message.raw("You cannot hurt a member of your own group.").color(Color.YELLOW));
+                                attacker.sendMessage(
+                                        Message.raw("You cannot hurt a member of your own group.").color(Color.YELLOW));
                             } else if (victimGroup.getDiplomacyStatus(attackerGroup.getId()) == DiplomacyStatus.ALLY) {
                                 damage.setCancelled(true);
-                                attacker.sendMessage(Message.raw("You cannot hurt an allied group member.").color(Color.YELLOW));
+                                attacker.sendMessage(
+                                        Message.raw("You cannot hurt an allied group member.").color(Color.YELLOW));
                             }
                         }
                     }

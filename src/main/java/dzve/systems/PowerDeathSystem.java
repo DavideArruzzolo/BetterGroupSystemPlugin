@@ -46,7 +46,7 @@ public class PowerDeathSystem extends DeathSystems.OnDeathSystem {
         UUID victimId = playerRef.getUuid();
         Group victimGroup = GroupService.getInstance(null).getPlayerGroup(victimId);
 
-        if (victimGroup == null || !(victimGroup instanceof Faction victimFaction)) {
+        if (!(victimGroup instanceof Faction victimFaction)) {
             return;
         }
 
@@ -67,7 +67,7 @@ public class PowerDeathSystem extends DeathSystems.OnDeathSystem {
         if (killerId != null) {
             Group killerGroup = GroupService.getInstance(null).getPlayerGroup(killerId);
 
-            if (killerGroup != null && killerGroup instanceof Faction killerFaction) {
+            if (killerGroup instanceof Faction killerFaction) {
                 if (!killerGroup.equals(victimGroup)) {
                     double powerGain = config.getPowerGainByKill();
 

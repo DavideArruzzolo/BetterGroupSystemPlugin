@@ -130,15 +130,13 @@ public abstract class Group {
         }
     }
 
-    public boolean withdraw(double amount, UUID playerId) {
+    public void withdraw(double amount, UUID playerId) {
         if (amount > 0) {
             GroupMember member = getMember(playerId);
             if (member != null && member.getBankBalance() >= amount) {
                 member.setBankBalance(member.getBankBalance() - amount);
-                return true;
             }
         }
-        return false;
     }
 
     public double getBalance(UUID playerId) {

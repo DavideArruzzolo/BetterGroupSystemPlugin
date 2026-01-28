@@ -5,103 +5,15 @@ import com.hypixel.hytale.server.core.Message;
 import lombok.ToString;
 
 import java.awt.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.regex.Pattern;
-
-import static java.util.Map.entry;
 
 @ToString
 public final class ChatFormatter {
-    private static final Pattern TAG_PATTERN = Pattern.compile("<(/?)(\\w+)(?::([^>]+))?>");
-    private static final Map<String, Color> NAMED_COLORS = Map.ofEntries(
-            entry("black", new Color(0, 0, 0)),
-            entry("dark_blue", new Color(0, 0, 170)),
-            entry("dark_green", new Color(0, 170, 0)),
-            entry("dark_aqua", new Color(0, 170, 170)),
-            entry("dark_red", new Color(170, 0, 0)),
-            entry("dark_purple", new Color(170, 0, 170)),
-            entry("gold", new Color(255, 170, 0)),
-            entry("gray", new Color(170, 170, 170)),
-            entry("dark_gray", new Color(85, 85, 85)),
-            entry("blue", new Color(85, 85, 255)),
-            entry("green", new Color(85, 255, 85)),
-            entry("aqua", new Color(85, 255, 255)),
-            entry("red", new Color(255, 85, 85)),
-            entry("light_purple", new Color(255, 85, 255)),
-            entry("yellow", new Color(255, 255, 85)),
-            entry("white", new Color(255, 255, 255))
-    );
 
     public static StyledText of(String text) {
         return new StyledText(text);
-    }
-
-    public static Message parse(String text) {
-        if (!text.contains("<")) {
-            return Message.raw(text);
-        }
-
-        var root = Message.empty();
-        var stateStack = new ArrayDeque<StyleState>();
-        stateStack.push(new StyleState());
-        var matcher = TAG_PATTERN.matcher(text);
-
-        int lastIndex = 0;
-        while (matcher.find()) {
-            int start = matcher.start();
-            int end = matcher.end();
-
-            if (start > lastIndex) {
-                var content = text.substring(lastIndex, start);
-                root.insert(createStyledMessage(content, stateStack.element()));
-            }
-
-            lastIndex = end;
-            boolean isClosing = "/".equals(matcher.group(1));
-            var tagName = matcher.group(2).toLowerCase();
-            var tagArg = matcher.group(3);
-
-            if (isClosing) {
-                if (stateStack.size() > 1) {
-                    stateStack.pop();
-                }
-                continue;
-            }
-
-            var currentState = stateStack.element();
-            var newState = currentState.copy();
-
-            if (NAMED_COLORS.containsKey(tagName)) {
-                newState = newState.withColor(NAMED_COLORS.get(tagName));
-            } else {
-                switch (tagName) {
-                    case "color", "c", "colour" -> {
-                        var c = parseColorArg(tagArg);
-                        if (c != null) newState = newState.withColor(c);
-                    }
-                    case "bold", "b" -> newState = newState.withBold();
-                    case "italic", "i", "em" -> newState = newState.withItalic();
-                    case "underline", "u" -> newState = newState.withUnderlined();
-                    case "monospace", "mono" -> newState = newState.withMonospace();
-                    case "link", "url" -> {
-                        if (tagArg != null) newState = newState.withLink(tagArg);
-                    }
-                    case "reset", "r" -> {
-                        stateStack.clear();
-                        newState = new StyleState();
-                    }
-                }
-            }
-            stateStack.push(newState);
-        }
-
-        if (lastIndex < text.length()) {
-            var content = text.substring(lastIndex);
-            root.insert(createStyledMessage(content, stateStack.element()));
-        }
-
-        return root;
     }
 
     public static Message createStyledMessage(String content, StyleState state) {
@@ -118,24 +30,6 @@ public final class ChatFormatter {
         if (state.monospace) msg.monospace(true);
         if (state.underlined) msg.getFormattedMessage().underlined = MaybeBool.True;
         if (state.link != null) msg.link(state.link);
-    }
-
-    private static Color parseColorArg(String arg) {
-        if (arg == null) return null;
-        return NAMED_COLORS.getOrDefault(arg, parseHexColor(arg));
-    }
-
-    private static Color parseHexColor(String hex) {
-        try {
-            String clean = hex.startsWith("#") ? hex.substring(1) : hex;
-            if (clean.length() == 6) {
-                var rgb = HexFormat.of().parseHex(clean);
-                return new Color(rgb[0] & 0xFF, rgb[1] & 0xFF, rgb[2] & 0xFF);
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        return null;
     }
 
     @ToString
@@ -209,10 +103,6 @@ public final class ChatFormatter {
                              boolean underlined, boolean monospace, String link) {
         public StyleState() {
             this(null, false, false, false, false, null);
-        }
-
-        public StyleState copy() {
-            return new StyleState(color, bold, italic, underlined, monospace, link);
         }
 
         public StyleState withColor(Color color) {

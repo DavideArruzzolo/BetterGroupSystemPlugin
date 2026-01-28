@@ -1,0 +1,468 @@
+package dzve.service.membership;
+
+import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.Universe;
+import dzve.model.*;
+import dzve.service.NotificationService;
+import dzve.service.group.GroupService;
+import dzve.utils.ChatFormatter;
+
+import java.awt.*;
+import java.util.*;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
+import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Success;
+import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Warning;
+
+public class MembershipService {
+
+    private final GroupService groupService;
+    private final NotificationService notificationService;
+    private final Map<UUID, Set<UUID>> invitations = new ConcurrentHashMap<>();
+
+    public MembershipService(GroupService groupService) {
+        this.groupService = groupService;
+        this.notificationService = NotificationService.getInstance();
+    }
+
+    public void invitePlayer(PlayerRef sender, PlayerRef target) {
+        Group group = groupService.getGroupOrNotify(sender);
+        if (group == null || !groupService.hasPerm(group, sender, Permission.CAN_INVITE))
+            return;
+
+        if (groupService.getPlayerGroup(target.getUuid()) != null) {
+            groupService.notify(sender, "Player already in a group.");
+            return;
+        }
+        if (group.getMembers().size() >= (group.getType().equals(GroupType.FACTION)
+                ? GroupService.getConfig().getMaxSize()
+                : GroupService.getConfig().getMaxSize()
+                + GroupService.getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel())) {
+            groupService.notify(sender, "Group full.");
+            return;
+        }
+
+        invitations.computeIfAbsent(target.getUuid(), k -> ConcurrentHashMap.newKeySet()).add(group.getId());
+        groupService.notify(sender, "Invited " + target.getUsername(), false);
+        groupService.notify(target, "You have been invited to join " + group.getName() + "! Use '/group accept "
+                + group.getName() + "' to join.", false);
+    }
+
+    public void acceptInvitation(PlayerRef player, String groupName) {
+        if (groupService.getPlayerGroup(player.getUuid()) != null) {
+            groupService.notify(player, "Already in a group.");
+            return;
+        }
+
+        Group group = groupService.getGroupByName(groupName);
+        if (group == null) {
+            groupService.notify(player, "Group not found.");
+            return;
+        }
+
+        Set<UUID> invites = invitations.get(player.getUuid());
+        if (invites == null || !invites.contains(group.getId())) {
+            groupService.notify(player, "No invitation from this group.");
+            return;
+        }
+        if (group.getMembers().size() >= GroupService.getConfig().getMaxSize()) {
+            groupService.notify(player, "Group is full.");
+            return;
+        }
+
+        GroupRole defaultRole = group.getRoles().stream().filter(GroupRole::isDefault).findFirst().orElseThrow();
+        group.addMember(player, defaultRole.getId());
+        groupService.updatePlayerGroupMap(player.getUuid(), group.getId());
+        invites.remove(group.getId());
+        groupService.saveGroups();
+        groupService.notify(player, "Joined " + group.getName(), false);
+
+        groupService.updateGroupMaps(group);
+
+        notificationService.broadcastGroup(
+                group.getMembers().stream()
+                        .map(m -> m.getPlayerId())
+                        .filter(id -> !id.equals(player.getUuid()))
+                        .toList(),
+                player.getUsername() + " joined the group!",
+                Success);
+    }
+
+    public void kickMember(PlayerRef sender, UUID targetId) {
+        Group group = groupService.getGroupOrNotify(sender);
+        if (group == null || !groupService.hasPerm(group, sender, Permission.CAN_KICK))
+            return;
+        if (!group.isMember(targetId)) {
+            groupService.notify(sender, "Target not in group.");
+            return;
+        }
+        if (sender.getUuid().equals(targetId)) {
+            groupService.notify(sender, "Cannot kick self.");
+            return;
+        }
+
+        if (group.isLeader(targetId)) {
+            groupService.notify(sender, "Cannot kick the group leader.", true);
+            return;
+        }
+
+        if (!canModify(group, sender.getUuid(), targetId)) {
+            groupService.notify(sender, "Target rank too high.");
+            return;
+        }
+
+        group.removeMember(targetId);
+        groupService.removePlayerFromGroupMap(targetId);
+        groupService.clearPlayerMapFilter(targetId);
+        groupService.saveGroups();
+        groupService.notify(sender, "Member kicked.", false);
+
+        PlayerRef targetPlayer = Universe.get().getPlayer(targetId);
+        if (targetPlayer != null) {
+            groupService.notify(targetPlayer, "You have been kicked from " + group.getName() + ".", true);
+        }
+
+        notificationService.broadcastGroup(
+                group.getMembers().stream()
+                        .map(GroupMember::getPlayerId)
+                        .filter(id -> !id.equals(sender.getUuid()) && !id.equals(targetId))
+                        .toList(),
+                targetPlayer != null ? targetPlayer.getUsername() : "A member" + " has been kicked from the group!",
+                Warning);
+
+        groupService.updateGroupMaps(group);
+    }
+
+    public void leaveGroup(PlayerRef player) {
+        Group group = groupService.getGroupOrNotify(player);
+        if (group == null)
+            return;
+        if (group.isLeader(player.getUuid()) && group.getMembers().size() > 1) {
+            groupService.notify(player, "Leader cannot leave. Transfer ownership first.");
+            return;
+        }
+
+        if (group.getMembers().size() <= 1) {
+            groupService.disband(player);
+        } else {
+            group.removeMember(player.getUuid());
+            groupService.removePlayerFromGroupMap(player.getUuid());
+            groupService.clearPlayerMapFilter(player.getUuid());
+            groupService.saveGroups();
+            groupService.notify(player, "You left the group.", false);
+
+            notificationService.broadcastGroup(
+                    group.getMembers().stream()
+                            .map(GroupMember::getPlayerId)
+                            .toList(),
+                    player.getUsername() + " has left the group!",
+                    Warning);
+
+            groupService.updateGroupMaps(group);
+        }
+    }
+
+    public void transferLeadership(PlayerRef sender, UUID targetId) {
+        Group group = groupService.getGroupOrNotify(sender);
+        if (group == null || !group.isLeader(sender.getUuid()))
+            return; // Only leader can transfer
+        if (!group.isMember(targetId)) {
+            groupService.notify(sender, "Target not in group.");
+            return;
+        }
+
+        GroupRole leaderRole = getRoleByPriority(group, Integer.MAX_VALUE);
+        GroupRole memberRole = getRoleByPriority(group, 50);
+
+        group.setLeaderId(targetId);
+        group.changeMemberRole(targetId, leaderRole.getId());
+        group.changeMemberRole(sender.getUuid(), memberRole.getId());
+        groupService.saveGroups();
+        groupService.notify(sender, "Leadership transferred.", false);
+
+        PlayerRef targetPlayer = Universe.get().getPlayer(targetId);
+        if (targetPlayer != null) {
+            groupService.notify(targetPlayer, "You are now the leader of " + group.getName() + "!", false);
+        }
+    }
+
+    public void createRole(PlayerRef sender, String name, List<String> grants) {
+        Group group = groupService.getGroupOrNotify(sender);
+        if (group == null || !groupService.hasPerm(group, sender, Permission.CAN_MANAGE_ROLE))
+            return;
+        if (group.getRoles().size() >= 10) {
+            groupService.notify(sender, "Max roles reached.");
+            return;
+        }
+        GroupRole existingRole = getRoleByName(group, name);
+        if (existingRole != null && !existingRole.isDefault()) {
+            groupService.notify(sender, "Role exists.");
+            return;
+        }
+
+        Set<Permission> perms = parsePerms(grants);
+        if (perms == null) {
+            groupService.notify(sender, "Invalid permissions.");
+            return;
+        }
+
+        modifyRoles(group, roles -> roles.add(new GroupRole(name, name, 10, false, perms)));
+        groupService.notify(sender, "Role created.", false);
+    }
+
+    public void deleteRole(PlayerRef sender, String name) {
+        Group group = groupService.getGroupOrNotify(sender);
+        if (group == null || !groupService.hasPerm(group, sender, Permission.CAN_MANAGE_ROLE))
+            return;
+
+        GroupRole role = getRoleByName(group, name);
+        if (role == null) {
+            groupService.notify(sender, "Role not found.");
+            return;
+        }
+        if (role.isDefault()) {
+            groupService.notify(sender, "Cannot delete default role.");
+            return;
+        }
+        if (group.getMembers().stream().anyMatch(m -> m.getRoleId().equals(role.getId()))) {
+            groupService.notify(sender, "Role is in use.");
+            return;
+        }
+
+        modifyRoles(group, roles -> roles.remove(role));
+        groupService.notify(sender, "Role deleted.", false);
+    }
+
+    public void updateRole(PlayerRef sender, String name, List<String> addGrants, List<String> removeGrants) {
+        Group group = groupService.getGroupOrNotify(sender);
+        if (group == null || !groupService.hasPerm(group, sender, Permission.CAN_MANAGE_ROLE))
+            return;
+
+        GroupRole role = getRoleByName(group, name);
+        if (role == null) {
+            groupService.notify(sender, "Role not found.");
+            return;
+        }
+        if (role.isDefault()) {
+            groupService.notify(sender, "Cannot edit default role.");
+            return;
+        }
+
+        Set<Permission> perms = new HashSet<>(role.getPermissions());
+        Set<Permission> addPerms = parsePerms(addGrants);
+        Set<Permission> removePerms = parsePerms(removeGrants);
+
+        if (addPerms != null) {
+            perms.addAll(addPerms);
+        }
+        if (removePerms != null) {
+            perms.removeAll(removePerms);
+        }
+
+        role.setPermissions(perms);
+        groupService.saveGroups();
+        groupService.notify(sender, "Role permissions updated.", false);
+    }
+
+    public void setRole(PlayerRef sender, UUID targetId, String roleName) {
+        Group group = groupService.getGroupOrNotify(sender);
+        if (group == null || !groupService.hasPerm(group, sender, Permission.CAN_CHANGE_ROLE))
+            return;
+        if (!group.isMember(targetId)) {
+            groupService.notify(sender, "Target not in group.");
+            return;
+        }
+
+        if (group.isLeader(targetId)) {
+            groupService.notify(sender, "Cannot change the leader's role.", true);
+            return;
+        }
+
+        if (!canModify(group, sender.getUuid(), targetId)) {
+            groupService.notify(sender, "Hierarchy prevents this.");
+            return;
+        }
+
+        GroupRole role = getRoleByName(group, roleName);
+        if (role == null) {
+            groupService.notify(sender, "Role not found.");
+            return;
+        }
+
+        GroupRole senderRole = getMemberRole(group, sender.getUuid());
+        if (!group.isLeader(sender.getUuid())
+                && role.getPriority() >= (senderRole != null ? senderRole.getPriority() : 0)) {
+            groupService.notify(sender, "Cannot promote to rank >= yours.");
+            return;
+        }
+
+        group.changeMemberRole(targetId, role.getId());
+        groupService.saveGroups();
+        groupService.notify(sender, "Role updated successfully.", false);
+    }
+
+    // Helper methods (extracted from GroupService, potentially duplicated or
+    // shared)
+    // To avoid duplication, I should request GroupService to expose these helpers
+    // or make them Utils.
+    // For now I copy them to keep Service independent.
+
+    private boolean canModify(Group g, UUID actor, UUID target) {
+        if (g.isLeader(actor))
+            return true;
+        if (g.isLeader(target))
+            return false;
+        GroupRole actorRole = getMemberRole(g, actor);
+        GroupRole targetRole = getMemberRole(g, target);
+        return actorRole != null && targetRole != null && actorRole.getPriority() > targetRole.getPriority();
+    }
+
+    private GroupRole getMemberRole(Group g, UUID pid) {
+        GroupMember member = g.getMember(pid);
+        if (member == null)
+            return null;
+        return g.getRoles().stream().filter(r -> r.getId().equals(member.getRoleId())).findFirst().orElse(null);
+    }
+
+    private GroupRole getRoleByName(Group g, String n) {
+        return g.getRoles().stream().filter(r -> r.getName().equalsIgnoreCase(n)).findFirst().orElse(null);
+    }
+
+    private GroupRole getRoleByPriority(Group g, int p) {
+        return g.getRoles().stream().filter(r -> r.getPriority() <= p)
+                .max(Comparator.comparingInt(GroupRole::getPriority)).orElseThrow();
+    }
+
+    private void modifyRoles(Group g, Consumer<Set<GroupRole>> modifier) {
+        Set<GroupRole> mutable = new HashSet<>(g.getRoles());
+        modifier.accept(mutable);
+        g.setRoles(mutable);
+        groupService.saveGroups();
+    }
+
+    private Set<Permission> parsePerms(List<String> list) {
+        if (list == null)
+            return null;
+        try {
+            return list.stream()
+                    .map(s -> s.replace("\"", "").trim().replace(",", ""))
+                    .map(s -> Permission.valueOf(s.toUpperCase().replace(".", "_")))
+                    .collect(Collectors.toSet());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    // Getters for invitations if needed
+    public Set<UUID> getInvites(UUID playerId) {
+        return invitations.get(playerId);
+    }
+
+    public void listInvitations(PlayerRef sender) {
+        Set<UUID> invites = invitations.get(sender.getUuid());
+        if (invites == null || invites.isEmpty()) {
+            groupService.notify(sender, "No pending invitations.", false);
+            return;
+        }
+
+        ChatFormatter.StyledText msg = ChatFormatter.of("=== Pending Group Invitations ===\n\n")
+                .withColor(Color.YELLOW).withBold();
+
+        invites.stream()
+                .map(groupService::getGroup)
+                .filter(Objects::nonNull)
+                .forEach(group -> {
+                    Color groupColor = group.getColor() != null ? Color.decode(group.getColor()) : Color.white;
+                    String leaderName = Optional.ofNullable(group.getMember(group.getLeaderId()))
+                            .map(GroupMember::getPlayerName)
+                            .orElse("N/A");
+
+                    msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n").withColor(Color.CYAN)
+                            .append("Group: ").withColor(Color.YELLOW).withBold()
+                            .append(group.getName()).withColor(groupColor).append("\n")
+                            .append("Tag: ").withColor(Color.CYAN)
+                            .append(group.getTag()).withColor(groupColor).append("\n")
+                            .append("Leader: ").withColor(Color.GREEN)
+                            .append(leaderName).append("\n")
+                            .append("Type: ").withColor(Color.WHITE)
+                            .append(group.getType().name()).append("\n")
+                            .append("Members: ").withColor(new Color(255, 170, 0))
+                            .append(group.getMembers().size() + " / " +
+                                    (group.getType().equals(GroupType.FACTION) ? GroupService.getConfig().getMaxSize()
+                                            : GroupService.getConfig().getMaxSize()
+                                            + GroupService.getConfig().getSlotQuantityGainForLevel()
+                                            * ((Guild) group).getLevel()))
+                            .append("\n");
+
+                    if (group.getDescription() != null && !group.getDescription().trim().isEmpty()) {
+                        msg.append("Description: ").withColor(Color.GRAY)
+                                .append(group.getDescription()).append("\n");
+                    }
+
+                    if (group instanceof Faction faction) {
+                        msg.append("Total Power: ").withColor(new Color(255, 85, 255))
+                                .append(String.format("%.2f", faction.getTotalPower())).append("\n");
+                        msg.append("Raidable: ").withColor(Color.RED)
+                                .append(faction.isRaidable() ? "YES" : "NO")
+                                .withColor(faction.isRaidable() ? Color.RED : Color.GREEN).append("\n");
+                    }
+                    if (group instanceof Guild guild) {
+                        msg.append("Level: ").withColor(Color.CYAN)
+                                .append(String.valueOf(guild.getLevel())).append("\n");
+                    }
+
+                    msg.append("Use: ").withColor(Color.YELLOW)
+                            .append("/group accept " + group.getName()).withColor(Color.GREEN)
+                            .append(" to join\n")
+                            .append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n").withColor(Color.CYAN)
+                            .append("\n");
+                });
+
+        sender.sendMessage(msg.toMessage());
+    }
+
+    public void listRoles(PlayerRef sender) {
+        Group group = groupService.getGroupOrNotify(sender);
+        if (group == null)
+            return;
+
+        ChatFormatter.StyledText msg = ChatFormatter.of("=== Roles for " + group.getName() + " ===\n\n")
+                .withColor(Color.YELLOW).withBold();
+
+        if (group.getRoles().isEmpty()) {
+            msg.append("No roles found.").withColor(Color.GRAY);
+        } else {
+            group.getRoles().stream()
+                    .sorted(Comparator.comparingInt(GroupRole::getPriority).reversed())
+                    .forEach(role -> {
+                        String perms = role.getPermissions().stream()
+                                .map(Permission::name)
+                                .collect(Collectors.joining(", "));
+
+                        Color roleColor = role.getPriority() >= 100 ? new Color(255, 170, 0)
+                                : role.getPriority() >= 50 ? Color.BLUE : Color.GRAY;
+
+                        msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n").withColor(Color.CYAN)
+                                .append("Role: ").withColor(Color.YELLOW).withBold()
+                                .append(role.getName()).withColor(roleColor).append("\n")
+                                .append("Priority: ").withColor(Color.GREEN)
+                                .append(role.getPriority() + "\n")
+                                .append("Permissions: ").withColor(Color.CYAN)
+                                .append(perms.isEmpty() ? "None" : perms).append("\n")
+                                .append("Members with this role: ").withColor(Color.WHITE);
+
+                        // Count members with this role
+                        long memberCount = group.getMembers().stream()
+                                .filter(m -> m.getRoleId().equals(role.getId()))
+                                .count();
+                        msg.append(String.valueOf(memberCount)).append("\n");
+                    });
+
+            msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-").withColor(Color.CYAN);
+        }
+        sender.sendMessage(msg.toMessage());
+    }
+}

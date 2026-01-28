@@ -1,17 +1,9 @@
 package dzve.service.group;
 
-import com.hypixel.hytale.builtin.teleport.components.TeleportHistory;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.math.vector.Vector3d;
-import com.hypixel.hytale.math.vector.Vector3f;
-import com.hypixel.hytale.server.core.HytaleServer;
-import com.hypixel.hytale.server.core.command.system.arguments.types.Coord;
 import com.hypixel.hytale.server.core.entity.entities.Player;
-import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation;
-import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
-import com.hypixel.hytale.server.core.modules.entity.teleport.Teleport;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -21,8 +13,13 @@ import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.model.*;
 import dzve.service.JsonStorage;
 import dzve.service.NotificationService;
+import dzve.service.diplomacy.DiplomacyService;
+import dzve.service.economy.EconomyService;
+import dzve.service.membership.MembershipService;
+import dzve.service.territory.TerritoryService;
 import dzve.utils.ChatFormatter;
 import dzve.utils.MapUtils;
+import lombok.Getter;
 
 import javax.annotation.Nullable;
 import java.awt.*;
@@ -31,14 +28,10 @@ import java.text.Normalizer;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Danger;
 import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Success;
-import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Warning;
 import static dzve.config.BetterGroupSystemPluginConfig.DATA_FOLDER;
 import static dzve.config.BetterGroupSystemPluginConfig.FILE_NAME;
 import static dzve.model.GroupType.FACTION;
@@ -54,24 +47,43 @@ public class GroupService {
     private final JsonStorage<GroupData> storage;
     private final Map<UUID, Group> groups = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> playerGroupMap = new ConcurrentHashMap<>();
-    private final Map<UUID, Set<UUID>> invitations = new ConcurrentHashMap<>();
+
     private final Set<String> namesGroups = ConcurrentHashMap.newKeySet();
     private final Set<String> tagsGroups = ConcurrentHashMap.newKeySet();
 
+    // Sub-Services
+    @Getter
+    private final TerritoryService territoryService;
+    @Getter
+    private final EconomyService economyService;
+    @Getter
+    private final DiplomacyService diplomacyService;
+    @Getter
+    private final MembershipService membershipService;
+
     private GroupService() {
         this.storage = new JsonStorage<>(new File(DATA_FOLDER, FILE_NAME), GroupData.class);
+        this.territoryService = new TerritoryService(this);
+        this.economyService = new EconomyService(this);
+        this.diplomacyService = new DiplomacyService(this);
+        this.membershipService = new MembershipService(this);
         loadGroups();
     }
 
     public static BetterGroupSystemPluginConfig getConfig() {
         if (config == null) {
-            throw new IllegalStateException("GroupService config not initialized. Please ensure getInstance(config) is called before using the service.");
+            throw new IllegalStateException(
+                    "GroupService config not initialized. Please ensure getInstance(config) is called before using the service.");
         }
         return config;
     }
 
     public static synchronized GroupService getInstance(BetterGroupSystemPluginConfig betterGroupSystemPluginConfig) {
         if (betterGroupSystemPluginConfig == null) {
+            if (config == null) {
+                LOGGER.atWarning().log(
+                        "GroupService.getInstance(null) called before config initialization! This may lead to errors.");
+            }
             return instance;
         }
         config = betterGroupSystemPluginConfig;
@@ -83,6 +95,7 @@ public class GroupService {
         playerGroupMap.clear();
         namesGroups.clear();
         tagsGroups.clear();
+        territoryService.clearCache();
         GroupData data = storage.load();
         if (data != null && data.getGroups() != null) {
             this.groups.putAll(data.getGroups());
@@ -104,6 +117,7 @@ public class GroupService {
         namesGroups.add(group.getName().toLowerCase());
         tagsGroups.add(group.getTag().toLowerCase());
         group.getMembers().forEach(m -> playerGroupMap.put(m.getPlayerId(), group.getId()));
+        territoryService.cacheGroupClaims(group);
     }
 
     public void saveGroups() {
@@ -111,21 +125,7 @@ public class GroupService {
     }
 
     public void invitePlayer(PlayerRef sender, PlayerRef target) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !hasPerm(group, sender, Permission.CAN_INVITE)) return;
-
-        if (playerGroupMap.containsKey(target.getUuid())) {
-            notify(sender, "Player already in a group.");
-            return;
-        }
-        if (group.getMembers().size() >= (group.getType().equals(FACTION) ? getConfig().getMaxSize() : getConfig().getMaxSize() + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel())) {
-            notify(sender, "Group full.");
-            return;
-        }
-
-        invitations.computeIfAbsent(target.getUuid(), k -> ConcurrentHashMap.newKeySet()).add(group.getId());
-        notify(sender, "Invited " + target.getUsername(), false);
-        notify(target, "You have been invited to join " + group.getName() + "! Use '/group accept " + group.getName() + "' to join.", false);
+        membershipService.invitePlayer(sender, target);
     }
 
     public void createGroup(PlayerRef player, String name, String tag, @Nullable String color, @Nullable String desc) {
@@ -137,9 +137,11 @@ public class GroupService {
         String safeName = normalize(name);
         String safeTag = normalize(tag);
 
-        if (!validateIdentifier(player, safeName, getConfig().getMinNameLength(), getConfig().getMaxNameLength(), namesGroups, "Name"))
+        if (!validateIdentifier(player, safeName, getConfig().getMinNameLength(), getConfig().getMaxNameLength(),
+                namesGroups, "Name"))
             return;
-        if (!validateIdentifier(player, safeTag, getConfig().getMinTagLength(), getConfig().getMaxTagLength(), tagsGroups, "Tag"))
+        if (!validateIdentifier(player, safeTag, getConfig().getMinTagLength(), getConfig().getMaxTagLength(),
+                tagsGroups, "Tag"))
             return;
         if (color != null && !HEX_PATTERN.matcher(color).matches()) {
             notify(player, "Invalid color code.");
@@ -161,16 +163,17 @@ public class GroupService {
         groups.put(group.getId(), group);
         cacheGroupData(group);
         saveGroups();
-        
+
         // Aggiorna la mappa per il creatore del gruppo
         updateGroupMaps(group);
-        
+
         notify(player, "Group created successfully!", false);
     }
 
     public void disband(PlayerRef player) {
         Group group = getGroupOrNotify(player);
-        if (group == null || !isLeader(group, player)) return;
+        if (group == null || !isLeader(group, player))
+            return;
 
         // Aggiorna la mappa per tutti i membri prima di eliminare il gruppo
         updateGroupMaps(group);
@@ -183,46 +186,22 @@ public class GroupService {
             clearPlayerMapFilter(m.getPlayerId());
         });
 
+        // Remove chunks from cache
+        territoryService.uncacheGroupClaims(group);
+
         groups.remove(group.getId());
         saveGroups();
         notify(player, "Group deleted.", false);
     }
 
     public void leaveGroup(PlayerRef player) {
-        Group group = getGroupOrNotify(player);
-        if (group == null) return;
-        if (group.isLeader(player.getUuid()) && group.getMembers().size() > 1) {
-            notify(player, "Leader cannot leave. Transfer ownership first.");
-            return;
-        }
-
-        if (group.getMembers().size() <= 1) {
-            disband(player);
-        } else {
-            group.removeMember(player.getUuid());
-            playerGroupMap.remove(player.getUuid());
-            // Clear map filter for player who left
-            clearPlayerMapFilter(player.getUuid());
-            saveGroups();
-            notify(player, "You left the group.", false);
-
-            // Notify all remaining group members that someone left
-            notificationService.broadcastGroup(
-                group.getMembers().stream()
-                    .map(GroupMember::getPlayerId)
-                    .toList(),
-                player.getUsername() + " has left the group!",
-                Warning
-            );
-
-            // Aggiorna la mappa per tutti i membri rimanenti del gruppo
-            updateGroupMaps(group);
-        }
+        membershipService.leaveGroup(player);
     }
 
     public void updateGroup(PlayerRef player, String type, String value) {
         Group group = getGroupOrNotify(player);
-        if (group == null || !hasPerm(group, player, Permission.CAN_UPDATE_GROUP)) return;
+        if (group == null || !hasPerm(group, player, Permission.CAN_UPDATE_GROUP))
+            return;
 
         switch (type.toLowerCase()) {
             case "name" -> {
@@ -231,7 +210,8 @@ public class GroupService {
                     notify(player, "Group name is already set to this value.");
                     return;
                 }
-                if (validateIdentifier(player, sName, getConfig().getMinNameLength(), getConfig().getMaxNameLength(), namesGroups, "Name")) {
+                if (validateIdentifier(player, sName, getConfig().getMinNameLength(), getConfig().getMaxNameLength(),
+                        namesGroups, "Name")) {
                     namesGroups.remove(group.getName().toLowerCase());
                     group.setName(sName);
                     namesGroups.add(sName.toLowerCase());
@@ -246,7 +226,8 @@ public class GroupService {
                     notify(player, "Group tag is already set to this value.");
                     return;
                 }
-                if (validateIdentifier(player, sTag, getConfig().getMinTagLength(), getConfig().getMaxTagLength(), tagsGroups, "Tag")) {
+                if (validateIdentifier(player, sTag, getConfig().getMinTagLength(), getConfig().getMaxTagLength(),
+                        tagsGroups, "Tag")) {
                     tagsGroups.remove(group.getTag().toLowerCase());
                     group.setTag(sTag);
                     tagsGroups.add(sTag.toLowerCase());
@@ -287,14 +268,14 @@ public class GroupService {
             }
         }
         saveGroups();
-        
+
         // Aggiorna la mappa per tutti i membri del gruppo quando nome/tag cambiano
-        if ("name".equals(type.toLowerCase()) || "tag".equals(type.toLowerCase())) {
+        if ("name".equalsIgnoreCase(type) || "tag".equalsIgnoreCase(type)) {
             // Update name/tag cache
-            if ("name".equals(type.toLowerCase())) {
+            if ("name".equalsIgnoreCase(type)) {
                 namesGroups.remove(group.getName().toLowerCase());
                 namesGroups.add(normalize(value).toLowerCase());
-            } else if ("tag".equals(type.toLowerCase())) {
+            } else if ("tag".equalsIgnoreCase(type)) {
                 tagsGroups.remove(group.getTag().toLowerCase());
                 tagsGroups.add(normalize(value).toLowerCase());
             }
@@ -303,523 +284,56 @@ public class GroupService {
     }
 
     public void transferLeadership(PlayerRef sender, UUID targetId) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !isLeader(group, sender)) return;
-        if (!group.isMember(targetId)) {
-            notify(sender, "Target not in group.");
-            return;
-        }
-
-        GroupRole leaderRole = getRoleByPriority(group, Integer.MAX_VALUE);
-        GroupRole memberRole = getRoleByPriority(group, 50);
-
-        group.setLeaderId(targetId);
-        group.changeMemberRole(targetId, leaderRole.getId());
-        group.changeMemberRole(sender.getUuid(), memberRole.getId());
-        saveGroups();
-        notify(sender, "Leadership transferred.", false);
-        
-        PlayerRef targetPlayer = Universe.get().getPlayer(targetId);
-        if (targetPlayer != null) {
-            notify(targetPlayer, "You are now the leader of " + group.getName() + "!", false);
-        }
+        membershipService.transferLeadership(sender, targetId);
     }
 
     public void acceptInvitation(PlayerRef player, String groupName) {
-        if (playerGroupMap.containsKey(player.getUuid())) {
-            notify(player, "Already in a group.");
-            return;
-        }
-
-        Group group = groups.values().stream().filter(g -> g.getName().equalsIgnoreCase(groupName)).findFirst().orElse(null);
-        if (group == null) {
-            notify(player, "Group not found.");
-            return;
-        }
-
-        Set<UUID> invites = invitations.get(player.getUuid());
-        if (invites == null || !invites.contains(group.getId())) {
-            notify(player, "No invitation from this group.");
-            return;
-        }
-        if (group.getMembers().size() >= getConfig().getMaxSize()) {
-            notify(player, "Group is full.");
-            return;
-        }
-
-        GroupRole defaultRole = group.getRoles().stream().filter(GroupRole::isDefault).findFirst().orElseThrow();
-        group.addMember(player, defaultRole.getId());
-        playerGroupMap.put(player.getUuid(), group.getId());
-        invites.remove(group.getId());
-        saveGroups();
-        notify(player, "Joined " + group.getName(), false);
-        
-        // Update map filter for the new member
-        updateGroupMaps(group);
-        
-        // Notify all group members that a new player joined
-        notificationService.broadcastGroup(
-            group.getMembers().stream()
-                .map(m -> m.getPlayerId())
-                .filter(id -> !id.equals(player.getUuid()))
-                .toList(),
-            player.getUsername() + " joined the group!",
-            Success
-        );
-
-        // Aggiorna la mappa per tutti i membri del gruppo
-        updateGroupMaps(group);
+        membershipService.acceptInvitation(player, groupName);
     }
 
     public void kickMember(PlayerRef sender, UUID targetId) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !hasPerm(group, sender, Permission.CAN_KICK)) return;
-        if (!group.isMember(targetId)) {
-            notify(sender, "Target not in group.");
-            return;
-        }
-        if (sender.getUuid().equals(targetId)) {
-            notify(sender, "Cannot kick self.");
-            return;
-        }
-        
-        // Leader protection: cannot kick the leader
-        if (group.isLeader(targetId)) {
-            notify(sender, "Cannot kick the group leader.", true);
-            return;
-        }
-
-        if (!canModify(group, sender.getUuid(), targetId)) {
-            notify(sender, "Target rank too high.");
-            return;
-        }
-
-        group.removeMember(targetId);
-        playerGroupMap.remove(targetId);
-        // Clear map filter for kicked player
-        clearPlayerMapFilter(targetId);
-        saveGroups();
-        notify(sender, "Member kicked.", false);
-        
-        PlayerRef targetPlayer = Universe.get().getPlayer(targetId);
-        if (targetPlayer != null) {
-            notify(targetPlayer, "You have been kicked from " + group.getName() + ".", true);
-        }
-
-        // Notify all remaining group members about the kick
-        notificationService.broadcastGroup(
-            group.getMembers().stream()
-                .map(GroupMember::getPlayerId)
-                .filter(id -> !id.equals(sender.getUuid()) && !id.equals(targetId))
-                .toList(),
-            targetPlayer != null ? targetPlayer.getUsername() : "A member" + " has been kicked from the group!",
-            Warning
-        );
-
-        // Aggiorna la mappa per tutti i membri rimanenti del gruppo
-        updateGroupMaps(group);
+        membershipService.kickMember(sender, targetId);
     }
 
     public void setHome(PlayerRef sender, String name, World world) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
-
-        if (group.getHome(name) != null) {
-            if (!hasPerm(group, sender, Permission.CAN_MANAGE_HOME)) {
-                notify(sender, "You don't have permission to overwrite an existing home.");
-                return;
-            }
-            group.removeHome(name);
-        } else if (group.getHomeCount() >= getConfig().getMaxHome()) {
-            notify(sender, "Max homes reached.");
-            return;
-        }
-
-        int cx = (int) sender.getTransform().getPosition().getX() >> 5;
-        int cz = (int) sender.getTransform().getPosition().getZ() >> 5;
-        if (!group.isChunkClaimed(cx, cz, world.getName())) {
-            notify(sender, "Must be in claimed land.");
-            return;
-        }
-
-        group.addHome(new GroupHome(name, sender.getWorldUuid(), sender.getTransform().getPosition().getX(), sender.getTransform().getPosition().getY(), sender.getTransform().getPosition().getZ(), sender.getTransform().getRotation().getYaw(), sender.getTransform().getRotation().getPitch()));
-        saveGroups();
-        notify(sender, "Home set successfully.", false);
+        territoryService.setHome(sender, name, world);
     }
 
     public void createRole(PlayerRef sender, String name, List<String> grants) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_ROLE)) return;
-        if (group.getRoles().size() >= 10) {
-            notify(sender, "Max roles reached.");
-            return;
-        }
-        GroupRole existingRole = getRoleByName(group, name);
-        if (existingRole != null && !existingRole.isDefault()) {
-            notify(sender, "Role exists.");
-            return;
-        }
-
-        Set<Permission> perms = parsePerms(grants);
-        if (perms == null) {
-            notify(sender, "Invalid permissions.");
-            return;
-        }
-
-        modifyRoles(group, roles -> roles.add(new GroupRole(name, name, 10, false, perms)));
-        notify(sender, "Role created.", false);
+        membershipService.createRole(sender, name, grants);
     }
 
     public void deleteRole(PlayerRef sender, String name) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_ROLE)) return;
-
-        GroupRole role = getRoleByName(group, name);
-        if (role == null) {
-            notify(sender, "Role not found.");
-            return;
-        }
-        if (role.isDefault()) {
-            notify(sender, "Cannot delete default role.");
-            return;
-        }
-        if (group.getMembers().stream().anyMatch(m -> m.getRoleId().equals(role.getId()))) {
-            notify(sender, "Role is in use.");
-            return;
-        }
-
-        modifyRoles(group, roles -> roles.remove(role));
-        notify(sender, "Role deleted.", false);
+        membershipService.deleteRole(sender, name);
     }
 
     public void updateRole(PlayerRef sender, String name, List<String> addGrants, List<String> removeGrants) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_ROLE)) return;
-
-        GroupRole role = getRoleByName(group, name);
-        if (role == null) {
-            notify(sender, "Role not found.");
-            return;
-        }
-        if (role.isDefault()) {
-            notify(sender, "Cannot edit default role.");
-            return;
-        }
-
-        Set<Permission> perms = new HashSet<>(role.getPermissions());
-        Set<Permission> addPerms = parsePerms(addGrants);
-        Set<Permission> removePerms = parsePerms(removeGrants);
-
-        if (addPerms != null) {
-            perms.addAll(addPerms);
-        }
-        if (removePerms != null) {
-            perms.removeAll(removePerms);
-        }
-
-        role.setPermissions(perms);
-        saveGroups();
-        notify(sender, "Role permissions updated.", false);
+        membershipService.updateRole(sender, name, addGrants, removeGrants);
     }
 
     public void setRole(PlayerRef sender, UUID targetId, String roleName) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !hasPerm(group, sender, Permission.CAN_CHANGE_ROLE)) return;
-        if (!group.isMember(targetId)) {
-            notify(sender, "Target not in group.");
-            return;
-        }
-        
-        // Leader protection: cannot change leader's role
-        if (group.isLeader(targetId)) {
-            notify(sender, "Cannot change the leader's role.", true);
-            return;
-        }
-        
-        if (!canModify(group, sender.getUuid(), targetId)) {
-            notify(sender, "Hierarchy prevents this.");
-            return;
-        }
-
-        GroupRole role = getRoleByName(group, roleName);
-        if (role == null) {
-            notify(sender, "Role not found.");
-            return;
-        }
-
-        GroupRole senderRole = getMemberRole(group, sender.getUuid());
-        if (!group.isLeader(sender.getUuid()) && role.getPriority() >= (senderRole != null ? senderRole.getPriority() : 0)) {
-            notify(sender, "Cannot promote to rank >= yours.");
-            return;
-        }
-
-        group.changeMemberRole(targetId, role.getId());
-        saveGroups();
-        notify(sender, "Role updated successfully.", false);
+        membershipService.setRole(sender, targetId, roleName);
     }
 
     public void claimChunk(PlayerRef sender, World world) {
-        ChunkInfo chunkInfo = getChunkInfo(sender, world);
-        if (chunkInfo == null) return;
-
-        // Check if chunk is already claimed
-        Group existingOwner = getGroupByChunk(world.getName(), chunkInfo.cx, chunkInfo.cz);
-        if (existingOwner != null) {
-            // Check if the existing owner is a raidable faction
-            if (existingOwner instanceof Faction existingFaction && existingFaction.isRaidable()) {
-                // Convert the chunk from raidable faction to current player's group
-                convertChunkFromRaidable(existingOwner, chunkInfo.group, chunkInfo, sender);
-                return;
-            } else {
-                notify(sender, "Chunk already claimed.");
-                return;
-            }
-        }
-
-        if (chunkInfo.group instanceof Faction f) {
-            int maxClaims = f.getMaxClaims(getConfig().getClaimRatio());
-            if (f.getClaims().size() >= maxClaims) {
-                notify(sender, "Not enough power. Claims: " + f.getClaims().size() + "/" + maxClaims);
-                return;
-            }
-        } else if (chunkInfo.group.getClaims().size() >= getConfig().getMaxClaimsPerFaction()) {
-            notify(sender, "Claim limit reached.");
-            return;
-        }
-
-        chunkInfo.group.addClaim(new GroupClaimedChunk(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
-        saveGroups();
-        notify(sender, "Land claimed!", false);
+        territoryService.claimChunk(sender, world);
     }
 
-    private void convertChunkFromRaidable(Group raidableFaction, Group newOwner, ChunkInfo chunkInfo, PlayerRef sender) {
-        // Remove claim from raidable faction
-        raidableFaction.removeClaim(chunkInfo.cx, chunkInfo.cz, chunkInfo.world);
-        
-        // Add claim to new owner
-        newOwner.addClaim(new GroupClaimedChunk(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
-        
-        // Save changes
-        saveGroups();
-        
-        // Update raidable status for the faction that lost the chunk
-        if (raidableFaction instanceof Faction faction) {
-            faction.updateRaidableStatus();
-        }
-        
-        // Notify all players about the chunk conversion
-        String conversionMessage = String.format(
-            "§c[RAID] §f%s §chas conquered chunk (%d, %d) from raidable faction §f%s§c!",
-            newOwner.getName(),
-            chunkInfo.cx,
-            chunkInfo.cz,
-            raidableFaction.getName()
-        );
-        
-        // Notify all online players
-        notificationService.broadcastGroup(
-            Universe.get().getPlayers().stream()
-                .map(PlayerRef::getUuid)
-                .toList(),
-            conversionMessage,
-            Danger
-        );
-        
-        // Send specific notifications
-        notify(sender, "Successfully conquered chunk from raidable faction!", false);
-        
-        // Notify members of the raidable faction that they lost a chunk
-        notificationService.broadcastGroup(
-            raidableFaction.getMembers().stream()
-                .map(GroupMember::getPlayerId)
-                .toList(),
-            "Your faction has lost chunk (" + chunkInfo.cx + ", " + chunkInfo.cz + ") to " + newOwner.getName() + "!",
-            Danger
-        );
-        
-        // Notify members of the new owner faction
-        notificationService.broadcastGroup(
-            newOwner.getMembers().stream()
-                .map(GroupMember::getPlayerId)
-                .toList(),
-            "Your faction has conquered chunk (" + chunkInfo.cx + ", " + chunkInfo.cz + ") from " + raidableFaction.getName() + "!",
-            Success
-        );
-        
-        // Notify allies of the raidable faction about the raid
-        notifyAlliesAboutRaid(raidableFaction, newOwner, chunkInfo, false);
-        
-        // Notify allies of the conquering faction about the successful raid
-        notifyAlliesAboutRaid(newOwner, raidableFaction, chunkInfo, true);
-    }
-    
-    private void notifyAlliesAboutRaid(Group faction, Group otherFaction, ChunkInfo chunkInfo, boolean isAttacker) {
-        if (!(faction instanceof Faction)) return; // Only factions have allies
-        
-        // Find all allied factions
-        List<UUID> alliedMembers = new ArrayList<>();
-        faction.getDiplomaticRelations().forEach((groupId, status) -> {
-            if (status == DiplomacyStatus.ALLY) {
-                Group ally = groups.get(groupId);
-                if (ally != null) {
-                    alliedMembers.addAll(ally.getMembers().stream()
-                        .map(GroupMember::getPlayerId)
-                        .toList());
-                }
-            }
-        });
-        
-        if (!alliedMembers.isEmpty()) {
-            String allyMessage;
-            if (isAttacker) {
-                allyMessage = String.format(
-                    "§a[ALLY RAID] §fYour ally §a%s §fhas successfully raided §c%s §fat chunk (%d, %d)!",
-                    faction.getName(),
-                    otherFaction.getName(),
-                    chunkInfo.cx,
-                    chunkInfo.cz
-                );
-            } else {
-                allyMessage = String.format(
-                    "§c[ALLY RAID] §fYour ally §c%s §fhas been raided by §a%s §fat chunk (%d, %d)!",
-                    faction.getName(),
-                    otherFaction.getName(),
-                    chunkInfo.cx,
-                    chunkInfo.cz
-                );
-            }
-            
-            notificationService.broadcastGroup(
-                alliedMembers,
-                allyMessage,
-                isAttacker ? Success : Danger
-            );
-        }
-    }
-
-    public void teleportHome(PlayerRef sender, String name, Store<EntityStore> store, Ref<EntityStore> ref, World world) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !hasPerm(group, sender, Permission.CAN_TELEPORT_HOME)) return;
-
-        GroupMember member = group.getMember(sender.getUuid());
-        GroupHome home;
-
-        if (name != null) {
-            home = group.getHome(name);
-        } else if (member.getDefaultHome() != null) {
-            home = group.getHomeById(member.getDefaultHome());
-        } else if (group.getHomeCount() >= 1) {
-            home = group.getHomes().stream().findFirst().orElse(null);
-        } else {
-            home = null;
-        }
-
-        if (home != null) {
-            TransformComponent transformComponent = store.getComponent(ref, TransformComponent.getComponentType());
-            HeadRotation headRotationComponent = store.getComponent(ref, HeadRotation.getComponentType());
-
-            if (transformComponent == null || headRotationComponent == null) {
-                notify(sender, "Teleport failed.");
-                return;
-            }
-
-            Vector3d previousPos = transformComponent.getPosition().clone();
-            Vector3f previousHeadRotation = headRotationComponent.getRotation().clone();
-            Vector3f previousBodyRotation = transformComponent.getRotation().clone();
-
-            Coord relX = Coord.parse(String.valueOf(home.getX()));
-            Coord relY = Coord.parse(String.valueOf(home.getY()));
-            Coord relZ = Coord.parse(String.valueOf(home.getZ()));
-
-            double x = relX.resolveXZ(previousPos.getX());
-            double z = relZ.resolveXZ(previousPos.getZ());
-            double y = relY.resolveYAtWorldCoords(previousPos.getY(), world, x, z);
-
-            notify(sender, "Teleporting to " + home.getName() + " in 5sec...", false);
-
-            HytaleServer.SCHEDULED_EXECUTOR.schedule(() -> world.execute(() -> {
-                Teleport teleport = Teleport.createForPlayer(
-                        new Vector3d(x, y, z),
-                        new Vector3f(previousBodyRotation.getPitch(), home.getYaw(), previousBodyRotation.getRoll())
-                ).setHeadRotation(new Vector3f(home.getPitch(), home.getYaw(), 0));
-
-                store.addComponent(ref, Teleport.getComponentType(), teleport);
-                store.ensureAndGetComponent(ref, TeleportHistory.getComponentType())
-                        .append(world, previousPos, previousHeadRotation,
-                                String.format("Teleport to (%s, %s, %s)", x, y, z));
-            }), 5, TimeUnit.SECONDS);
-
-        } else {
-            notify(sender, "Home not found.");
-        }
+    public void teleportHome(PlayerRef sender, String name, Store<EntityStore> store, Ref<EntityStore> ref,
+                             World world) {
+        territoryService.teleportHome(sender, name, store, ref, world);
     }
 
     public void unclaimChunk(PlayerRef sender, World world) {
-        ChunkInfo chunkInfo = getChunkInfo(sender, world);
-        if (chunkInfo == null) return;
-
-        if (!chunkInfo.group.isChunkClaimed(chunkInfo.cx, chunkInfo.cz, world.getName())) {
-            notify(sender, "This land is not claimed by your group.");
-            return;
-        }
-
-        Set<GroupHome> homesToRemove = new HashSet<>();
-        for (GroupHome home : chunkInfo.group.getHomes()) {
-            int homeChunkX = (int) home.getX() >> 5;
-            int homeChunkZ = (int) home.getZ() >> 5;
-            if (homeChunkX == chunkInfo.cx && homeChunkZ == chunkInfo.cz &&
-                    home.getName().equals(world.getName())) {
-                homesToRemove.add(home);
-            }
-        }
-
-        if (!homesToRemove.isEmpty()) {
-            chunkInfo.group.getHomes().removeAll(homesToRemove);
-            notify(sender, "Removed " + homesToRemove.size() + " home(s) from this chunk.", false);
-        }
-
-        chunkInfo.group.removeClaim(chunkInfo.cx, chunkInfo.cz, world.getName());
-        saveGroups();
-        notify(sender, "Land unclaimed.", false);
+        territoryService.unclaimChunk(sender, world);
     }
 
     public void withdraw(PlayerRef sender, double amount) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null) return;
-
-        if (!hasPerm(group, sender, Permission.CAN_MANAGE_BANK)) {
-            return;
-        }
-
-        if (amount <= 0) {
-            notify(sender, "Amount must be positive.");
-            return;
-        }
-
-        double groupBankBalance = group.getBankBalance();
-        if (groupBankBalance < amount) {
-            notify(sender, "Insufficient group bank funds. Group has " + groupBankBalance + " but need " + amount);
-            return;
-        }
-
-        group.withdrawFromGroup(amount, sender.getUuid());
-        group.deposit(amount, sender.getUuid());
-
-        saveGroups();
-        notify(sender, "Withdrawn " + amount + ". New balance: " + group.getBalance(sender.getUuid()), false);
+        economyService.withdraw(sender, amount);
     }
 
     public void withdrawFromGroup(PlayerRef sender, double amount) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null) return;
-
-        if (amount <= 0 || !group.withdrawFromGroup(amount, sender.getUuid())) {
-            notify(sender, "Invalid amount, insufficient funds, or no permission.");
-            return;
-        }
-
-        saveGroups();
-        notify(sender, "Withdrawn " + amount + " from group bank", false);
+        economyService.withdrawFromGroup(sender, amount);
     }
 
     public void upgradeGuild(PlayerRef sender) {
@@ -828,7 +342,8 @@ public class GroupService {
             notify(sender, "Not a guild.");
             return;
         }
-        if (!hasPerm(group, sender, Permission.CAN_UPGRADE_GUILD)) return;
+        if (!hasPerm(group, sender, Permission.CAN_UPGRADE_GUILD))
+            return;
 
         if (!guild.canUpgrade()) {
             notify(sender, "Cannot upgrade (Max level or Insufficient funds).");
@@ -861,7 +376,8 @@ public class GroupService {
             }
         }
 
-        if (group == null) return;
+        if (group == null)
+            return;
 
         String leaderName = Optional.ofNullable(group.getMember(group.getLeaderId()))
                 .map(GroupMember::getPlayerName)
@@ -869,20 +385,40 @@ public class GroupService {
 
         Color groupColor = group.getColor() != null ? Color.decode(group.getColor()) : Color.white;
 
-        ChatFormatter.StyledText msg =
-                ChatFormatter.of("#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#\n")
-                        .append("Name: ").append(group.getName() + "\n").withBold()
-                        .append("Tag: ").append(group.getTag() + "\n").withBold()
-                        .append("Color: ").append(group.getColor() != null ? group.getColor() + "\n" : "No color set" + "\n").withBold().withColor(groupColor)
-                        .append("Description: ").append(group.getDescription() != null ? group.getDescription() : "No description set" + "\n").withBold()
-                        .append("\n")
-                        .append("Leader: ").append(leaderName + "\n").withBold()
-                        .append("Members: ").append(group.getMembers().size() + " / " + (group.getType().equals(FACTION) ? getConfig().getMaxSize() : getConfig().getMaxSize() + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel()) + "\n").withBold()
-                        .append("Claims: ").append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid())) ? group.getClaims().size() + " / " + getConfig().getMaxClaimsPerFaction() + "\n" : "Not allowed to see this info\n").withBold()
-                        .append("Homes: ").append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid())) ? group.getHomeCount() + "\n" : "Not allowed to see this info\n").withBold()
-                        .append("Bank: ").append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid())) ? String.format("%.2f", group.getBankBalance()) + "\n" : "Not allowed to see this info\n").withBold()
-                        .append("Created: ").append(group.getCreatedAt().toLocalDate().toString() + "\n").withBold()
-                        .append("\n");
+        ChatFormatter.StyledText msg = ChatFormatter.of("#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#\n")
+                .append("Name: ").append(group.getName() + "\n").withBold()
+                .append("Tag: ").append(group.getTag() + "\n").withBold()
+                .append("Color: ").append(group.getColor() != null ? group.getColor() + "\n" : "No color set" + "\n")
+                .withBold().withColor(groupColor)
+                .append("Description: ")
+                .append(group.getDescription() != null ? group.getDescription() : "No description set" + "\n")
+                .withBold()
+                .append("\n")
+                .append("Leader: ").append(leaderName + "\n").withBold()
+                .append("Members: ")
+                .append(group.getMembers().size() + " / "
+                        + (group.getType().equals(FACTION) ? getConfig().getMaxSize()
+                        : getConfig().getMaxSize()
+                        + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel())
+                        + "\n")
+                .withBold()
+                .append("Claims: ")
+                .append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid()))
+                        ? group.getClaims().size() + " / " + getConfig().getMaxClaimsPerFaction() + "\n"
+                        : "Not allowed to see this info\n")
+                .withBold()
+                .append("Homes: ")
+                .append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid()))
+                        ? group.getHomeCount() + "\n"
+                        : "Not allowed to see this info\n")
+                .withBold()
+                .append("Bank: ")
+                .append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid()))
+                        ? String.format("%.2f", group.getBankBalance()) + "\n"
+                        : "Not allowed to see this info\n")
+                .withBold()
+                .append("Created: ").append(group.getCreatedAt().toLocalDate().toString() + "\n").withBold()
+                .append("\n");
         if (group instanceof Faction faction) {
             msg = msg
                     .append("Total Power: ").append(String.format("%.2f", faction.getTotalPower()) + "\n").withBold()
@@ -892,14 +428,19 @@ public class GroupService {
                     .append("Can be raidable: ");
 
             if (group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid()))) {
-                msg = msg.append(faction.isRaidable() ? "YES\n" : "NO\n").withBold().withColor(faction.isRaidable() ? Color.RED : Color.GREEN);
+                msg = msg.append(faction.isRaidable() ? "YES\n" : "NO\n").withBold()
+                        .withColor(faction.isRaidable() ? Color.RED : Color.GREEN);
             } else {
                 msg = msg.append("Not allowed to see this info\n").withBold();
             }
         }
         if (group instanceof Guild guild) {
             msg = msg.append("Level: ").append(String.valueOf(guild.getLevel()))
-                    .append("MoneyToNextLevel: ").append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid())) ? guild.getMoneyToNextLevel() + "\n" : "Not allowed to see this info\n").withBold();
+                    .append("MoneyToNextLevel: ")
+                    .append(group.getMembers().stream().anyMatch(a -> a.getPlayerId().equals(sender.getUuid()))
+                            ? guild.getMoneyToNextLevel() + "\n"
+                            : "Not allowed to see this info\n")
+                    .withBold();
         }
         msg = msg.append("#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#");
 
@@ -907,143 +448,21 @@ public class GroupService {
     }
 
     public void listInvitations(PlayerRef sender) {
-        Set<UUID> invites = invitations.get(sender.getUuid());
-        if (invites == null || invites.isEmpty()) {
-            notify(sender, "No pending invitations.", false);
-            return;
-        }
-
-        ChatFormatter.StyledText msg = ChatFormatter.of("=== Pending Group Invitations ===\n\n")
-                .withColor(Color.YELLOW).withBold();
-
-        invites.stream()
-                .map(groups::get)
-                .filter(Objects::nonNull)
-                .forEach(group -> {
-                    Color groupColor = group.getColor() != null ? Color.decode(group.getColor()) : Color.white;
-                    String leaderName = Optional.ofNullable(group.getMember(group.getLeaderId()))
-                            .map(GroupMember::getPlayerName)
-                            .orElse("N/A");
-
-                    msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n").withColor(Color.CYAN)
-                            .append("Group: ").withColor(Color.YELLOW).withBold()
-                            .append(group.getName()).withColor(groupColor).append("\n")
-                            .append("Tag: ").withColor(Color.CYAN)
-                            .append(group.getTag()).withColor(groupColor).append("\n")
-                            .append("Leader: ").withColor(Color.GREEN)
-                            .append(leaderName).append("\n")
-                            .append("Type: ").withColor(Color.WHITE)
-                            .append(group.getType().name()).append("\n")
-                            .append("Members: ").withColor(new Color(255, 170, 0))
-                            .append(group.getMembers().size() + " / " + 
-                                (group.getType().equals(FACTION) ? getConfig().getMaxSize() : 
-                                 getConfig().getMaxSize() + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel())).append("\n");
-
-                    if (group.getDescription() != null && !group.getDescription().trim().isEmpty()) {
-                        msg.append("Description: ").withColor(Color.GRAY)
-                              .append(group.getDescription()).append("\n");
-                    }
-
-                    if (group instanceof Faction faction) {
-                        msg.append("Total Power: ").withColor(new Color(255, 85, 255))
-                              .append(String.format("%.2f", faction.getTotalPower())).append("\n");
-                        msg.append("Raidable: ").withColor(Color.RED)
-                              .append(faction.isRaidable() ? "YES" : "NO").withColor(faction.isRaidable() ? Color.RED : Color.GREEN).append("\n");
-                    }
-                    if (group instanceof Guild guild) {
-                        msg.append("Level: ").withColor(Color.CYAN)
-                              .append(String.valueOf(guild.getLevel())).append("\n");
-                    }
-                    
-                    msg.append("Use: ").withColor(Color.YELLOW)
-                            .append("/group accept " + group.getName()).withColor(Color.GREEN)
-                            .append(" to join\n")
-                            .append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n").withColor(Color.CYAN)
-                            .append("\n");
-                });
-
-        sender.sendMessage(msg.toMessage());
+        membershipService.listInvitations(sender);
     }
 
     public void listRoles(PlayerRef sender) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null) return;
-
-        ChatFormatter.StyledText msg = ChatFormatter.of("=== Roles for " + group.getName() + " ===\n\n")
-                .withColor(Color.YELLOW).withBold();
-
-        if (group.getRoles().isEmpty()) {
-            msg.append("No roles found.").withColor(Color.GRAY);
-        } else {
-            group.getRoles().stream()
-                    .sorted(Comparator.comparingInt(GroupRole::getPriority).reversed())
-                    .forEach(role -> {
-                        String perms = role.getPermissions().stream()
-                                .map(Permission::name)
-                                .collect(Collectors.joining(", "));
-
-                        Color roleColor = role.getPriority() >= 100 ? new Color(255, 170, 0) : 
-                                        role.getPriority() >= 50 ? Color.BLUE : Color.GRAY;
-                        
-                        msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n").withColor(Color.CYAN)
-                                .append("Role: ").withColor(Color.YELLOW).withBold()
-                                .append(role.getName()).withColor(roleColor).append("\n")
-                                .append("Priority: ").withColor(Color.GREEN)
-                                .append(role.getPriority() + "\n")
-                                .append("Permissions: ").withColor(Color.CYAN)
-                                .append(perms.isEmpty() ? "None" : perms).append("\n")
-                                .append("Members with this role: ").withColor(Color.WHITE);
-                        
-                        // Count members with this role
-                        long memberCount = group.getMembers().stream()
-                                .filter(m -> m.getRoleId().equals(role.getId()))
-                                .count();
-                        msg.append(String.valueOf(memberCount)).append("\n");
-                    });
-
-            msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-").withColor(Color.CYAN);
-        }
-        sender.sendMessage(msg.toMessage());
+        membershipService.listRoles(sender);
     }
 
     public void listHomes(PlayerRef sender) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null) return;
-
-        if (!hasPerm(group, sender, Permission.CAN_TELEPORT_HOME)) {
-            return;
-        }
-
-        ChatFormatter.StyledText msg = ChatFormatter.of("=== Homes for " + group.getName() + " ===\n\n")
-                .withColor(Color.YELLOW).withBold();
-
-        Set<GroupHome> homes = group.getHomes();
-        if (homes.isEmpty()) {
-            msg.append("Your group has no homes set.").withColor(Color.GRAY);
-        } else {
-            homes.stream()
-                    .sorted(Comparator.comparing(GroupHome::getName))
-                    .forEach(home -> {
-                        GroupMember member = group.getMember(sender.getUuid());
-                        boolean isDefault = member != null && home.getName().equals(member.getDefaultHome());
-                        msg.append("● ").withColor(Color.GREEN)
-                                .append(home.getName()).withBold()
-                                .append(isDefault ? " (default)" : "").withColor(new Color(255, 170, 0))
-                                .append("\n")
-                                .append("  Location: ").withColor(Color.WHITE)
-                                .append("x=" + (int) home.getX() + ", y=" + (int) home.getY() + ", z=" + (int) home.getZ()).withColor(Color.CYAN)
-                                .append("\n")
-                                .append("  World: ").withColor(Color.WHITE)
-                                .append(home.getWorld().toString()).withColor(Color.GREEN)
-                                .append("\n\n");
-                    });
-        }
-        sender.sendMessage(msg.toMessage());
+        territoryService.listHomes(sender);
     }
 
     public void deleteHome(PlayerRef sender, String homeName) {
         Group group = getGroupOrNotify(sender);
-        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_HOME)) return;
+        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_HOME))
+            return;
 
         if (!group.removeHome(homeName)) {
             notify(sender, "Home not found.");
@@ -1055,7 +474,8 @@ public class GroupService {
 
     public void setDefaultHome(PlayerRef sender, @Nullable String homeName) {
         Group group = getGroupOrNotify(sender);
-        if (group == null) return;
+        if (group == null)
+            return;
 
         GroupMember member = group.getMember(sender.getUuid());
         if (homeName == null) {
@@ -1074,146 +494,29 @@ public class GroupService {
     }
 
     public void setDiplomacy(PlayerRef sender, String targetGroupName, DiplomacyStatus status) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_DIPLOMACY)) return;
-
-        Group target = groups.values().stream()
-                .filter(g -> g.getName().equalsIgnoreCase(targetGroupName))
-                .findFirst().orElse(null);
-
-        if (target == null) {
-            notify(sender, "Target group not found.");
-            return;
-        }
-        if (target.getId().equals(group.getId())) {
-            notify(sender, "Cannot change relations with yourself.");
-            return;
-        }
-
-        if (status == DiplomacyStatus.ALLY) {
-
-            notify(sender, "Alliance request sent (Not implemented fully).", false);
-        } else {
-
-            group.setDiplomacyStatus(target.getId(), status);
-            saveGroups();
-            notify(sender, "Diplomacy with " + target.getName() + " set to " + status, false);
-        }
+        diplomacyService.setDiplomacy(sender, targetGroupName, status);
     }
 
     public void listDiplomacy(PlayerRef sender) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null) return;
-
-        ChatFormatter.StyledText msg = ChatFormatter.of("=== Diplomatic Relations for " + group.getName() + " ===\n\n")
-                .withColor(Color.YELLOW).withBold();
-
-        if (group.getDiplomaticRelations().isEmpty()) {
-            msg.append("No diplomatic relations set.").withColor(Color.GRAY);
-        } else {
-            // Group by status for better organization
-            Map<DiplomacyStatus, List<Group>> relationsByStatus = new HashMap<>();
-            
-            group.getDiplomaticRelations().forEach((groupId, status) -> {
-                Group relatedGroup = groups.get(groupId);
-                if (relatedGroup != null) {
-                    relationsByStatus.computeIfAbsent(status, k -> new ArrayList<>()).add(relatedGroup);
-                }
-            });
-            
-            // Display allies first
-            if (relationsByStatus.containsKey(DiplomacyStatus.ALLY)) {
-                msg.append("Allies:\n").withColor(Color.GREEN).withBold();
-                relationsByStatus.get(DiplomacyStatus.ALLY).forEach(ally -> {
-                    msg.append("  ● ").withColor(Color.GREEN)
-                          .append(ally.getName()).withColor(Color.GREEN)
-                          .append(" (" + ally.getTag() + ")\n").withColor(Color.GRAY);
-                });
-                msg.append("\n");
-            }
-            
-            // Display enemies
-            if (relationsByStatus.containsKey(DiplomacyStatus.ENEMY)) {
-                msg.append("Enemies:\n").withColor(Color.RED).withBold();
-                relationsByStatus.get(DiplomacyStatus.ENEMY).forEach(enemy -> {
-                    msg.append("  ● ").withColor(Color.RED)
-                          .append(enemy.getName()).withColor(Color.RED)
-                          .append(" (" + enemy.getTag() + ")\n").withColor(Color.GRAY);
-                });
-                msg.append("\n");
-            }
-            
-            // Display neutral
-            if (relationsByStatus.containsKey(DiplomacyStatus.NEUTRAL)) {
-                msg.append("Neutral:\n").withColor(Color.GRAY).withBold();
-                relationsByStatus.get(DiplomacyStatus.NEUTRAL).forEach(neutral -> {
-                    msg.append("  ● ").withColor(Color.GRAY)
-                          .append(neutral.getName()).withColor(Color.GRAY)
-                          .append(" (" + neutral.getTag() + ")\n").withColor(Color.GRAY);
-                });
-            }
-        }
-        sender.sendMessage(msg.toMessage());
+        diplomacyService.listDiplomacy(sender);
     }
 
     public void deposit(PlayerRef sender, double amount) {
-        if (amount <= 0) {
-            notify(sender, "Amount must be positive.");
-            return;
-        }
-
-        Group group = getGroupOrNotify(sender);
-        if (group == null) return;
-        group.deposit(amount, sender.getUuid());
-        if (group instanceof Guild guild) {
-            guild.getMoneyContributions().merge(sender.getUuid(), amount, Double::sum);
-        }
-
-        saveGroups();
-        notify(sender, "Deposited " + amount, false);
+        economyService.deposit(sender, amount);
     }
 
     public void depositToGroup(PlayerRef sender, double amount) {
-        if (amount <= 0) {
-            notify(sender, "Amount must be positive.");
-            return;
-        }
-
-        Group group = getGroupOrNotify(sender);
-        if (group == null) return;
-
-        double playerBalance = group.getBalance(sender.getUuid());
-        if (playerBalance < amount) {
-            notify(sender, "Insufficient personal balance. You have " + playerBalance + " but need " + amount);
-            return;
-        }
-
-        group.withdraw(amount, sender.getUuid());
-        group.depositToGroup(amount);
-        if (group instanceof Guild guild) {
-            guild.getMoneyContributions().merge(sender.getUuid(), amount, Double::sum);
-        }
-
-        saveGroups();
-        notify(sender, "Deposited " + amount + " to group bank.", false);
+        economyService.depositToGroup(sender, amount);
     }
 
     public void getBalance(PlayerRef sender, @Nullable String type) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null) return;
-
-        if (type == null || type.equalsIgnoreCase("player")) {
-            notify(sender, "Player balance: " + group.getBalance(sender.getUuid()), false);
-        } else if (type.equalsIgnoreCase("group")) {
-            notify(sender, "Group Bank Balance: " + group.getBankBalance(), false);
-        } else {
-            notify(sender, "Invalid type. Use 'player' or 'group'.");
-        }
+        economyService.getBalance(sender, type);
     }
 
     public void getPower(PlayerRef sender, @Nullable String type) {
         Group group = getGroupOrNotify(sender);
-        if (group == null) return;
+        if (group == null)
+            return;
 
         if (group instanceof dzve.model.Faction faction) {
             if (type == null || type.equalsIgnoreCase("player")) {
@@ -1230,95 +533,12 @@ public class GroupService {
     }
 
     public void showClaimMap(PlayerRef player, World world) {
-        Group playerGroup = getGroupOrNotify(player);
-        if (playerGroup == null) return;
-
-        int playerChunkX = (int) player.getTransform().getPosition().getX() >> 5;
-        int playerChunkZ = (int) player.getTransform().getPosition().getZ() >> 5;
-        String worldName = world.getName();
-
-        // Map dimensions
-        int horizontalRadius = 21; // 4 chunks horizontally = 9x5 grid
-        int verticalRadius = 6;   // 2 chunks vertically
-        int mapWidth = horizontalRadius * 2 + 1;
-        int mapHeight = verticalRadius * 2 + 1;
-
-        // Build the map
-        StringBuilder[] mapLines = new StringBuilder[mapHeight];
-        for (int i = 0; i < mapHeight; i++) {
-            mapLines[i] = new StringBuilder();
-        }
-
-        // Generate map content
-        for (int z = -verticalRadius; z <= verticalRadius; z++) {
-            for (int x = -horizontalRadius; x <= horizontalRadius; x++) {
-                int chunkX = playerChunkX + x;
-                int chunkZ = playerChunkZ + z;
-
-
-                String symbol;
-                if (x == 0 && z == 0) {
-                    symbol = "@"; // Player position
-                } else {
-                    Group chunkOwner = getGroupByChunk(worldName, chunkX, chunkZ);
-                    symbol = getChunkSymbol(chunkOwner, playerGroup);
-                }
-
-
-                mapLines[z + verticalRadius].append(symbol).append(" ");
-            }
-        }
-
-        // Display the map
-        sendMapMessage(player, "==================== CLAIM MAP ====================");
-
-        // Map rows with simpler borders
-        for (StringBuilder line : mapLines) {
-            sendMapMessage(player, line.toString());
-        }
-
-        sendMapMessage(player, "=================================================");
-        sendMapMessage(player, "KEY: @ -> You, O -> Own, A -> Ally, E -> Enemy, - -> Wild");
+        territoryService.showClaimMap(player, world);
     }
 
-    private void sendMapMessage(PlayerRef player, String message) {
-        player.sendMessage(com.hypixel.hytale.server.core.Message.raw(message));
-    }
-
-    private String getChunkSymbol(Group chunkOwner, Group playerGroup) {
-        if (chunkOwner == null) {
-            return "-"; // Wilderness
-        }
-
-        if (chunkOwner.equals(playerGroup)) {
-            return "O"; // Own
-        }
-
-        // Check if ally or enemy
-        dzve.model.DiplomacyStatus status = playerGroup.getDiplomacyStatus(chunkOwner.getId());
-        switch (status) {
-            case ALLY:
-                return "A"; // Ally
-            case ENEMY:
-                return "E"; // Enemy
-            case NEUTRAL:
-            default:
-                return "E"; // Default to enemy for non-allied groups
-        }
-    }
-
-    @Nullable
-    private ChunkInfo getChunkInfo(PlayerRef sender, World world) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null || !hasPerm(group, sender, Permission.CAN_MANAGE_CLAIM)) return null;
-
-        int cx = (int) sender.getTransform().getPosition().getX() >> 5;
-        int cz = (int) sender.getTransform().getPosition().getZ() >> 5;
-        return new ChunkInfo(group, cx, cz, world.getName());
-    }
-
-    private boolean hasPerm(Group g, PlayerRef p, Permission perm) {
-        if (g.isLeader(p.getUuid())) return true;
+    public boolean hasPerm(Group g, PlayerRef p, Permission perm) {
+        if (g.isLeader(p.getUuid()))
+            return true;
         GroupRole r = getMemberRole(g, p.getUuid());
         if (r != null && r.hasPermission(perm)) {
             return true;
@@ -1327,11 +547,31 @@ public class GroupService {
         return false;
     }
 
+    private GroupRole getMemberRole(Group g, UUID pid) {
+        GroupMember member = g.getMember(pid);
+        if (member == null)
+            return null;
+        return g.getRoles().stream().filter(r -> r.getId().equals(member.getRoleId())).findFirst().orElse(null);
+    }
+
     @Nullable
     public Group getGroupOrNotify(PlayerRef p) {
         UUID gid = playerGroupMap.get(p.getUuid());
-        if (gid == null) notify(p, "You are not in a group.");
+        if (gid == null)
+            notify(p, "You are not in a group.");
         return gid != null ? groups.get(gid) : null;
+    }
+
+    public Group getGroup(UUID id) {
+        return groups.get(id);
+    }
+
+    public void updatePlayerGroupMap(UUID playerId, UUID groupId) {
+        playerGroupMap.put(playerId, groupId);
+    }
+
+    public void removePlayerFromGroupMap(UUID playerId) {
+        playerGroupMap.remove(playerId);
     }
 
     @Nullable
@@ -1359,7 +599,8 @@ public class GroupService {
         notificationService.sendNotification(player.getUuid(), msg, isError ? Danger : Success);
     }
 
-    private boolean validateIdentifier(PlayerRef player, String val, int min, int max, Set<String> cache, String field) {
+    private boolean validateIdentifier(PlayerRef player, String val, int min, int max, Set<String> cache,
+                                       String field) {
         if (val.length() < min || val.length() > max) {
             notify(player, field + " length invalid.");
             return false;
@@ -1379,51 +620,10 @@ public class GroupService {
         return Normalizer.normalize(s, Normalizer.Form.NFC).trim().replace(" ", "_");
     }
 
-    private GroupRole getRoleByName(Group g, String n) {
-        return g.getRoles().stream().filter(r -> r.getName().equalsIgnoreCase(n)).findFirst().orElse(null);
-    }
-
-    private GroupRole getRoleByPriority(Group g, int p) {
-        return g.getRoles().stream().filter(r -> r.getPriority() <= p).max(Comparator.comparingInt(GroupRole::getPriority)).orElseThrow();
-    }
-
-    private GroupRole getMemberRole(Group g, UUID pid) {
-        GroupMember member = g.getMember(pid);
-        if (member == null) return null;
-        return g.getRoles().stream().filter(r -> r.getId().equals(member.getRoleId())).findFirst().orElse(null);
-    }
-
-    private boolean canModify(Group g, UUID actor, UUID target) {
-        if (g.isLeader(actor)) return true;
-        if (g.isLeader(target)) return false;
-        GroupRole actorRole = getMemberRole(g, actor);
-        GroupRole targetRole = getMemberRole(g, target);
-        return actorRole != null && targetRole != null && actorRole.getPriority() > targetRole.getPriority();
-    }
-
-    private void modifyRoles(Group g, Consumer<Set<GroupRole>> modifier) {
-        Set<GroupRole> mutable = new HashSet<>(g.getRoles());
-        modifier.accept(mutable);
-        g.setRoles(mutable);
-        saveGroups();
-    }
-
-    private Set<Permission> parsePerms(List<String> list) {
-        if (list == null) return null;
-        try {
-            return list.stream()
-                    .map(s -> s.replace("\"", "").trim().replace(",", ""))
-                    .map(s -> Permission.valueOf(s.toUpperCase().replace(".", "_")))
-                    .collect(Collectors.toSet());
-        } catch (IllegalArgumentException e) {
-            LOGGER.atWarning().log("Invalid permission encountered: " + e.getMessage());
-            return null;
-        }
-    }
-
     public void sendGroupMessage(PlayerRef sender, String[] message) {
         Group group = getGroupOrNotify(sender);
-        if (group == null) return;
+        if (group == null)
+            return;
 
         String[] messageContent = message.length > 1 ? Arrays.copyOfRange(message, 1, message.length) : new String[0];
 
@@ -1441,69 +641,41 @@ public class GroupService {
     }
 
     public void sendAllyMessage(PlayerRef sender, String[] message) {
-        Group group = getGroupOrNotify(sender);
-        if (group == null) return;
+        diplomacyService.sendAllyMessage(sender, message);
+    }
 
-        String[] messageContent = message.length > 1 ? Arrays.copyOfRange(message, 1, message.length) : new String[0];
-
-        ChatFormatter.StyledText styledMessage = ChatFormatter.of("[AllyChat]")
-                .withBold()
-                .withMonospace()
-                .withColor(Color.GREEN)
-                .append("[")
-                .withColor(Color.GRAY)
-                .append(group.getTag())
-                .withColor(Color.decode(group.getColor()))
-                .append("] ")
-                .withColor(Color.GRAY)
-                .append(sender.getUsername() + ": ")
-                .append(String.join(" ", messageContent));
-
-        Set<UUID> allRecipients = new HashSet<>();
-
-        group.getMembers().stream()
-                .map(GroupMember::getPlayerId)
-                .forEach(allRecipients::add);
-
-        group.getDiplomaticRelations().entrySet().stream()
-                .filter(entry -> entry.getValue() == DiplomacyStatus.ALLY)
-                .map(entry -> groups.get(entry.getKey()))
-                .filter(Objects::nonNull)
-                .flatMap(allyGroup -> allyGroup.getMembers().stream())
-                .map(GroupMember::getPlayerId)
-                .forEach(allRecipients::add);
-
-        Universe.get().getPlayers().stream()
-                .filter(player -> allRecipients.contains(player.getUuid()))
-                .forEach(player -> player.sendMessage(styledMessage.toMessage()));
+    public Group getGroupByName(String name) {
+        if (name == null)
+            return null;
+        return groups.values().stream()
+                .filter(g -> g.getName().equalsIgnoreCase(name))
+                .findFirst()
+                .orElse(null);
     }
 
     public Group getGroupByChunk(String worldName, int chunkX, int chunkZ) {
-        for (Group group : groups.values()) {
-            String a = group.getName();
-            if (group.isChunkClaimed(chunkX, chunkZ, worldName)) {
-                return group;
-            }
-        }
-        return null;
-    }
-
-    private record ChunkInfo(Group group, int cx, int cz, String world) {
+        return territoryService.getGroupByChunk(worldName, chunkX, chunkZ);
     }
 
     public void updateGroupMaps(Group group) {
-        if (group == null) return;
+        if (group == null)
+            return;
 
         Universe universe = Universe.get();
-        if (universe == null) return;
-
+        if (universe == null)
+            return;
 
         // Per ogni membro del gruppo, aggiorna il filtro della mappa
         for (GroupMember member : group.getMembers()) {
             universe.getPlayers().forEach(playerRef -> {
                 if (playerRef.getUuid().equals(member.getPlayerId())) {
-                    Player player = playerRef.getReference().getStore().getComponent(playerRef.getReference(), Player.getComponentType());
-                    WorldMapTracker mapTracker = player.getWorldMapTracker();
+                    Player player = Objects.requireNonNull(playerRef.getReference()).getStore().getComponent(
+                            playerRef.getReference(),
+                            Player.getComponentType());
+                    WorldMapTracker mapTracker = null;
+                    if (player != null) {
+                        mapTracker = player.getWorldMapTracker();
+                    }
                     if (mapTracker != null) {
                         MapUtils.updateMapFilter(mapTracker, member.getPlayerId(), this);
                     }
@@ -1512,19 +684,28 @@ public class GroupService {
         }
     }
 
-    private void clearPlayerMapFilter(UUID playerId) {
+    public void clearPlayerMapFilter(UUID playerId) {
         Universe universe = Universe.get();
-        if (universe == null) return;
+        if (universe == null)
+            return;
 
         universe.getPlayers().forEach(playerRef -> {
             if (playerRef.getUuid().equals(playerId)) {
-                Player player = playerRef.getReference().getStore().getComponent(playerRef.getReference(), Player.getComponentType());
-                WorldMapTracker mapTracker = player.getWorldMapTracker();
+                Player player = Objects.requireNonNull(playerRef.getReference()).getStore().getComponent(
+                        playerRef.getReference(),
+                        Player.getComponentType());
+                WorldMapTracker mapTracker = null;
+                if (player != null) {
+                    mapTracker = player.getWorldMapTracker();
+                }
                 if (mapTracker != null) {
                     MapUtils.clearMapFilter(mapTracker, playerId);
                 }
             }
         });
+    }
+
+    private record ChunkInfo(Group group, int cx, int cz, String world) {
     }
 
 }

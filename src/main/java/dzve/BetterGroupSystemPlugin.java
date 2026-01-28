@@ -61,7 +61,8 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
         this.getEntityStoreRegistry().registerSystem(new PvPProtectionSystem(config));
         this.getEntityStoreRegistry().registerSystem(new DamageTrackerSystem());
         this.getEntityStoreRegistry().registerSystem(new PowerDeathSystem());
-        this.mapPlayerListener = new MapPlayerListener(this);
+        this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.DamageBlockProtectionSystem());
+        this.mapPlayerListener = new MapPlayerListener();
         EventRegistry eventRegistry = this.getEventRegistry();
         MapPlayerListener player = this.mapPlayerListener;
         Objects.requireNonNull(player);

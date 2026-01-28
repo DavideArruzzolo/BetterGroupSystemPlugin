@@ -1,6 +1,5 @@
 package dzve.utils;
 
-import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.WorldMapTracker;
 import dzve.model.DiplomacyStatus;
 import dzve.model.Group;

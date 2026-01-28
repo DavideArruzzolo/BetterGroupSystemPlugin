@@ -76,20 +76,4 @@ public class GroupRole {
     public boolean hasPermission(Permission permission) {
         return permissions != null && permissions.contains(permission);
     }
-
-    public void addPermission(Permission permission) {
-        if (permissions != null) {
-            permissions.add(permission);
-        }
-    }
-
-    public void removePermission(Permission permission) {
-        if (permissions != null) {
-            permissions.remove(permission);
-        }
-    }
-
-    public boolean canManage(GroupRole other) {
-        return this.priority > other.priority;
-    }
 }
