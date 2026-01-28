@@ -41,4 +41,14 @@ public class MapUtils {
             return true;
         });
     }
+
+    @SuppressWarnings("deprecation")
+    public static void clearMapFilter(WorldMapTracker mapTracker, UUID playerId) {
+        // Clear the map filter by setting it to show all players
+        mapTracker.setPlayerMapFilter(otherPlayer -> {
+            UUID otherPlayerId = otherPlayer.getUuid();
+            // Don't show the player themselves
+            return !otherPlayerId.equals(playerId);
+        });
+    }
 }

@@ -104,7 +104,7 @@ public class Faction extends Group {
         updateRaidableStatus();
     }
 
-    private void updateRaidableStatus() {
+    public void updateRaidableStatus() {
         this.raidable = getClaims().size() > getMaxClaims(dzve.service.group.GroupService.getConfig().getClaimRatio());
     }
 

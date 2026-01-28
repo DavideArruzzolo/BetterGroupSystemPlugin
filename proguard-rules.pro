@@ -5,8 +5,6 @@
 -libraryjars <java.home>/jmods/java.sql.jmod(!**.jar;!module-info.class)
 -libraryjars <java.home>/jmods/java.desktop.jmod(!**.jar;!module-info.class)
 
--libraryjars C:\Users\arruz\AppData\Roaming\Hytale\install\release\package\game\latest\Server\HytaleServer.jar
-
 # Keep the Main Plugin Class (Entry Point) - specific methods required by Hytale
 -keep public class dzve.BetterGroupSystemPlugin {
     public <init>(com.hypixel.hytale.server.core.plugin.JavaPluginInit);
@@ -30,6 +28,14 @@
 }
 -keep class com.fasterxml.jackson.** { *; }
 -keepnames class com.fasterxml.jackson.** { *; }
+
+# Keep all classes in the model package to prevent serialization issues
+-keep class dzve.model.** { *; }
+-keepclassmembers class dzve.model.** { *; }
+
+# Keep config classes as they might be serialized/deserialized or accessed via reflection
+-keep class dzve.config.** { *; }
+-keepclassmembers class dzve.config.** { *; }
 
 -keepclassmembers class * {
     <init>(...);
@@ -55,3 +61,6 @@
 # -printmapping mapping.txt
 
 -dontnote **
+
+# Keep directories (useful for resources structure)
+-keepdirectories

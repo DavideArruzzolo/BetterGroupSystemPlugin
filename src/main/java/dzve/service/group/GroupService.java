@@ -38,6 +38,7 @@ import java.util.stream.Collectors;
 
 import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Danger;
 import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Success;
+import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Warning;
 import static dzve.config.BetterGroupSystemPluginConfig.DATA_FOLDER;
 import static dzve.config.BetterGroupSystemPluginConfig.FILE_NAME;
 import static dzve.model.GroupType.FACTION;
@@ -83,8 +84,8 @@ public class GroupService {
         namesGroups.clear();
         tagsGroups.clear();
         GroupData data = storage.load();
-        if (data != null && data.groups() != null) {
-            this.groups.putAll(data.groups());
+        if (data != null && data.getGroups() != null) {
+            this.groups.putAll(data.getGroups());
             groups.values().forEach(this::cacheGroupData);
             LOGGER.atInfo().log("Loaded " + groups.size() + " groups.");
         }
@@ -124,6 +125,7 @@ public class GroupService {
 
         invitations.computeIfAbsent(target.getUuid(), k -> ConcurrentHashMap.newKeySet()).add(group.getId());
         notify(sender, "Invited " + target.getUsername(), false);
+        notify(target, "You have been invited to join " + group.getName() + "! Use '/group accept " + group.getName() + "' to join.", false);
     }
 
     public void createGroup(PlayerRef player, String name, String tag, @Nullable String color, @Nullable String desc) {
@@ -175,7 +177,11 @@ public class GroupService {
 
         namesGroups.remove(group.getName().toLowerCase());
         tagsGroups.remove(group.getTag().toLowerCase());
-        group.getMembers().forEach(m -> playerGroupMap.remove(m.getPlayerId()));
+        group.getMembers().forEach(m -> {
+            playerGroupMap.remove(m.getPlayerId());
+            // Clear map filter for players who are being removed from group
+            clearPlayerMapFilter(m.getPlayerId());
+        });
 
         groups.remove(group.getId());
         saveGroups();
@@ -195,8 +201,19 @@ public class GroupService {
         } else {
             group.removeMember(player.getUuid());
             playerGroupMap.remove(player.getUuid());
+            // Clear map filter for player who left
+            clearPlayerMapFilter(player.getUuid());
             saveGroups();
             notify(player, "You left the group.", false);
+
+            // Notify all remaining group members that someone left
+            notificationService.broadcastGroup(
+                group.getMembers().stream()
+                    .map(GroupMember::getPlayerId)
+                    .toList(),
+                player.getUsername() + " has left the group!",
+                Warning
+            );
 
             // Aggiorna la mappa per tutti i membri rimanenti del gruppo
             updateGroupMaps(group);
@@ -273,6 +290,14 @@ public class GroupService {
         
         // Aggiorna la mappa per tutti i membri del gruppo quando nome/tag cambiano
         if ("name".equals(type.toLowerCase()) || "tag".equals(type.toLowerCase())) {
+            // Update name/tag cache
+            if ("name".equals(type.toLowerCase())) {
+                namesGroups.remove(group.getName().toLowerCase());
+                namesGroups.add(normalize(value).toLowerCase());
+            } else if ("tag".equals(type.toLowerCase())) {
+                tagsGroups.remove(group.getTag().toLowerCase());
+                tagsGroups.add(normalize(value).toLowerCase());
+            }
             updateGroupMaps(group);
         }
     }
@@ -293,6 +318,11 @@ public class GroupService {
         group.changeMemberRole(sender.getUuid(), memberRole.getId());
         saveGroups();
         notify(sender, "Leadership transferred.", false);
+        
+        PlayerRef targetPlayer = Universe.get().getPlayer(targetId);
+        if (targetPlayer != null) {
+            notify(targetPlayer, "You are now the leader of " + group.getName() + "!", false);
+        }
     }
 
     public void acceptInvitation(PlayerRef player, String groupName) {
@@ -323,6 +353,19 @@ public class GroupService {
         invites.remove(group.getId());
         saveGroups();
         notify(player, "Joined " + group.getName(), false);
+        
+        // Update map filter for the new member
+        updateGroupMaps(group);
+        
+        // Notify all group members that a new player joined
+        notificationService.broadcastGroup(
+            group.getMembers().stream()
+                .map(m -> m.getPlayerId())
+                .filter(id -> !id.equals(player.getUuid()))
+                .toList(),
+            player.getUsername() + " joined the group!",
+            Success
+        );
 
         // Aggiorna la mappa per tutti i membri del gruppo
         updateGroupMaps(group);
@@ -339,6 +382,12 @@ public class GroupService {
             notify(sender, "Cannot kick self.");
             return;
         }
+        
+        // Leader protection: cannot kick the leader
+        if (group.isLeader(targetId)) {
+            notify(sender, "Cannot kick the group leader.", true);
+            return;
+        }
 
         if (!canModify(group, sender.getUuid(), targetId)) {
             notify(sender, "Target rank too high.");
@@ -347,8 +396,25 @@ public class GroupService {
 
         group.removeMember(targetId);
         playerGroupMap.remove(targetId);
+        // Clear map filter for kicked player
+        clearPlayerMapFilter(targetId);
         saveGroups();
         notify(sender, "Member kicked.", false);
+        
+        PlayerRef targetPlayer = Universe.get().getPlayer(targetId);
+        if (targetPlayer != null) {
+            notify(targetPlayer, "You have been kicked from " + group.getName() + ".", true);
+        }
+
+        // Notify all remaining group members about the kick
+        notificationService.broadcastGroup(
+            group.getMembers().stream()
+                .map(GroupMember::getPlayerId)
+                .filter(id -> !id.equals(sender.getUuid()) && !id.equals(targetId))
+                .toList(),
+            targetPlayer != null ? targetPlayer.getUsername() : "A member" + " has been kicked from the group!",
+            Warning
+        );
 
         // Aggiorna la mappa per tutti i membri rimanenti del gruppo
         updateGroupMaps(group);
@@ -463,6 +529,13 @@ public class GroupService {
             notify(sender, "Target not in group.");
             return;
         }
+        
+        // Leader protection: cannot change leader's role
+        if (group.isLeader(targetId)) {
+            notify(sender, "Cannot change the leader's role.", true);
+            return;
+        }
+        
         if (!canModify(group, sender.getUuid(), targetId)) {
             notify(sender, "Hierarchy prevents this.");
             return;
@@ -482,16 +555,25 @@ public class GroupService {
 
         group.changeMemberRole(targetId, role.getId());
         saveGroups();
+        notify(sender, "Role updated successfully.", false);
     }
 
     public void claimChunk(PlayerRef sender, World world) {
         ChunkInfo chunkInfo = getChunkInfo(sender, world);
         if (chunkInfo == null) return;
 
-        boolean taken = groups.values().stream().anyMatch(g -> g.isChunkClaimed(chunkInfo.cx, chunkInfo.cz, world.getName()));
-        if (taken) {
-            notify(sender, "Chunk already claimed.");
-            return;
+        // Check if chunk is already claimed
+        Group existingOwner = getGroupByChunk(world.getName(), chunkInfo.cx, chunkInfo.cz);
+        if (existingOwner != null) {
+            // Check if the existing owner is a raidable faction
+            if (existingOwner instanceof Faction existingFaction && existingFaction.isRaidable()) {
+                // Convert the chunk from raidable faction to current player's group
+                convertChunkFromRaidable(existingOwner, chunkInfo.group, chunkInfo, sender);
+                return;
+            } else {
+                notify(sender, "Chunk already claimed.");
+                return;
+            }
         }
 
         if (chunkInfo.group instanceof Faction f) {
@@ -508,6 +590,111 @@ public class GroupService {
         chunkInfo.group.addClaim(new GroupClaimedChunk(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
         saveGroups();
         notify(sender, "Land claimed!", false);
+    }
+
+    private void convertChunkFromRaidable(Group raidableFaction, Group newOwner, ChunkInfo chunkInfo, PlayerRef sender) {
+        // Remove claim from raidable faction
+        raidableFaction.removeClaim(chunkInfo.cx, chunkInfo.cz, chunkInfo.world);
+        
+        // Add claim to new owner
+        newOwner.addClaim(new GroupClaimedChunk(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
+        
+        // Save changes
+        saveGroups();
+        
+        // Update raidable status for the faction that lost the chunk
+        if (raidableFaction instanceof Faction faction) {
+            faction.updateRaidableStatus();
+        }
+        
+        // Notify all players about the chunk conversion
+        String conversionMessage = String.format(
+            "§c[RAID] §f%s §chas conquered chunk (%d, %d) from raidable faction §f%s§c!",
+            newOwner.getName(),
+            chunkInfo.cx,
+            chunkInfo.cz,
+            raidableFaction.getName()
+        );
+        
+        // Notify all online players
+        notificationService.broadcastGroup(
+            Universe.get().getPlayers().stream()
+                .map(PlayerRef::getUuid)
+                .toList(),
+            conversionMessage,
+            Danger
+        );
+        
+        // Send specific notifications
+        notify(sender, "Successfully conquered chunk from raidable faction!", false);
+        
+        // Notify members of the raidable faction that they lost a chunk
+        notificationService.broadcastGroup(
+            raidableFaction.getMembers().stream()
+                .map(GroupMember::getPlayerId)
+                .toList(),
+            "Your faction has lost chunk (" + chunkInfo.cx + ", " + chunkInfo.cz + ") to " + newOwner.getName() + "!",
+            Danger
+        );
+        
+        // Notify members of the new owner faction
+        notificationService.broadcastGroup(
+            newOwner.getMembers().stream()
+                .map(GroupMember::getPlayerId)
+                .toList(),
+            "Your faction has conquered chunk (" + chunkInfo.cx + ", " + chunkInfo.cz + ") from " + raidableFaction.getName() + "!",
+            Success
+        );
+        
+        // Notify allies of the raidable faction about the raid
+        notifyAlliesAboutRaid(raidableFaction, newOwner, chunkInfo, false);
+        
+        // Notify allies of the conquering faction about the successful raid
+        notifyAlliesAboutRaid(newOwner, raidableFaction, chunkInfo, true);
+    }
+    
+    private void notifyAlliesAboutRaid(Group faction, Group otherFaction, ChunkInfo chunkInfo, boolean isAttacker) {
+        if (!(faction instanceof Faction)) return; // Only factions have allies
+        
+        // Find all allied factions
+        List<UUID> alliedMembers = new ArrayList<>();
+        faction.getDiplomaticRelations().forEach((groupId, status) -> {
+            if (status == DiplomacyStatus.ALLY) {
+                Group ally = groups.get(groupId);
+                if (ally != null) {
+                    alliedMembers.addAll(ally.getMembers().stream()
+                        .map(GroupMember::getPlayerId)
+                        .toList());
+                }
+            }
+        });
+        
+        if (!alliedMembers.isEmpty()) {
+            String allyMessage;
+            if (isAttacker) {
+                allyMessage = String.format(
+                    "§a[ALLY RAID] §fYour ally §a%s §fhas successfully raided §c%s §fat chunk (%d, %d)!",
+                    faction.getName(),
+                    otherFaction.getName(),
+                    chunkInfo.cx,
+                    chunkInfo.cz
+                );
+            } else {
+                allyMessage = String.format(
+                    "§c[ALLY RAID] §fYour ally §c%s §fhas been raided by §a%s §fat chunk (%d, %d)!",
+                    faction.getName(),
+                    otherFaction.getName(),
+                    chunkInfo.cx,
+                    chunkInfo.cz
+                );
+            }
+            
+            notificationService.broadcastGroup(
+                alliedMembers,
+                allyMessage,
+                isAttacker ? Success : Danger
+            );
+        }
     }
 
     public void teleportHome(PlayerRef sender, String name, Store<EntityStore> store, Ref<EntityStore> ref, World world) {
@@ -726,7 +913,8 @@ public class GroupService {
             return;
         }
 
-        ChatFormatter.StyledText msg = ChatFormatter.of("You have invitations from the following groups:\n");
+        ChatFormatter.StyledText msg = ChatFormatter.of("=== Pending Group Invitations ===\n\n")
+                .withColor(Color.YELLOW).withBold();
 
         invites.stream()
                 .map(groups::get)
@@ -737,22 +925,41 @@ public class GroupService {
                             .map(GroupMember::getPlayerName)
                             .orElse("N/A");
 
-                    msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n")
-                            .append("Name: ").append(group.getName() + "\n").withBold()
-                            .append("Tag: ").append(group.getTag() + "\n").withBold()
-                            .append("Color: ").append(group.getColor() != null ? group.getColor() + "\n" : "No color set" + "\n").withBold().withColor(groupColor)
-                            .append("Description: ").append(group.getDescription() != null ? group.getDescription() : "No description set" + "\n").withBold()
-                            .append("\n")
-                            .append("Leader: ").append(leaderName + "\n").withBold()
-                            .append("Members: ").append(group.getMembers().size() + " / " + (group.getType().equals(FACTION) ? getConfig().getMaxSize() : getConfig().getMaxSize() + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel()) + "\n").withBold();
+                    msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n").withColor(Color.CYAN)
+                            .append("Group: ").withColor(Color.YELLOW).withBold()
+                            .append(group.getName()).withColor(groupColor).append("\n")
+                            .append("Tag: ").withColor(Color.CYAN)
+                            .append(group.getTag()).withColor(groupColor).append("\n")
+                            .append("Leader: ").withColor(Color.GREEN)
+                            .append(leaderName).append("\n")
+                            .append("Type: ").withColor(Color.WHITE)
+                            .append(group.getType().name()).append("\n")
+                            .append("Members: ").withColor(new Color(255, 170, 0))
+                            .append(group.getMembers().size() + " / " + 
+                                (group.getType().equals(FACTION) ? getConfig().getMaxSize() : 
+                                 getConfig().getMaxSize() + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel())).append("\n");
+
+                    if (group.getDescription() != null && !group.getDescription().trim().isEmpty()) {
+                        msg.append("Description: ").withColor(Color.GRAY)
+                              .append(group.getDescription()).append("\n");
+                    }
 
                     if (group instanceof Faction faction) {
-                        msg.append("Total Power: ").append(String.format("%.2f", faction.getTotalPower()) + "\n").withBold();
+                        msg.append("Total Power: ").withColor(new Color(255, 85, 255))
+                              .append(String.format("%.2f", faction.getTotalPower())).append("\n");
+                        msg.append("Raidable: ").withColor(Color.RED)
+                              .append(faction.isRaidable() ? "YES" : "NO").withColor(faction.isRaidable() ? Color.RED : Color.GREEN).append("\n");
                     }
                     if (group instanceof Guild guild) {
-                        msg.append("Level: ").append(guild.getLevel() + "\n").withBold();
+                        msg.append("Level: ").withColor(Color.CYAN)
+                              .append(String.valueOf(guild.getLevel())).append("\n");
                     }
-                    msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n");
+                    
+                    msg.append("Use: ").withColor(Color.YELLOW)
+                            .append("/group accept " + group.getName()).withColor(Color.GREEN)
+                            .append(" to join\n")
+                            .append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n").withColor(Color.CYAN)
+                            .append("\n");
                 });
 
         sender.sendMessage(msg.toMessage());
@@ -762,10 +969,11 @@ public class GroupService {
         Group group = getGroupOrNotify(sender);
         if (group == null) return;
 
-        ChatFormatter.StyledText msg = ChatFormatter.of("Roles for " + group.getName() + ":\n");
+        ChatFormatter.StyledText msg = ChatFormatter.of("=== Roles for " + group.getName() + " ===\n\n")
+                .withColor(Color.YELLOW).withBold();
 
         if (group.getRoles().isEmpty()) {
-            msg.append("No roles found.");
+            msg.append("No roles found.").withColor(Color.GRAY);
         } else {
             group.getRoles().stream()
                     .sorted(Comparator.comparingInt(GroupRole::getPriority).reversed())
@@ -774,13 +982,26 @@ public class GroupService {
                                 .map(Permission::name)
                                 .collect(Collectors.joining(", "));
 
-                        msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n")
-                                .append("Role: ").append(role.getName() + "\n").withBold()
-                                .append("Priority: ").append(role.getPriority() + "\n")
-                                .append("Permissions: ").append(perms.isEmpty() ? "None" : perms + "\n");
+                        Color roleColor = role.getPriority() >= 100 ? new Color(255, 170, 0) : 
+                                        role.getPriority() >= 50 ? Color.BLUE : Color.GRAY;
+                        
+                        msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n").withColor(Color.CYAN)
+                                .append("Role: ").withColor(Color.YELLOW).withBold()
+                                .append(role.getName()).withColor(roleColor).append("\n")
+                                .append("Priority: ").withColor(Color.GREEN)
+                                .append(role.getPriority() + "\n")
+                                .append("Permissions: ").withColor(Color.CYAN)
+                                .append(perms.isEmpty() ? "None" : perms).append("\n")
+                                .append("Members with this role: ").withColor(Color.WHITE);
+                        
+                        // Count members with this role
+                        long memberCount = group.getMembers().stream()
+                                .filter(m -> m.getRoleId().equals(role.getId()))
+                                .count();
+                        msg.append(String.valueOf(memberCount)).append("\n");
                     });
 
-            msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-");
+            msg.append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-").withColor(Color.CYAN);
         }
         sender.sendMessage(msg.toMessage());
     }
@@ -793,17 +1014,28 @@ public class GroupService {
             return;
         }
 
-        ChatFormatter.StyledText msg = ChatFormatter.of("Homes for " + group.getName() + ":\n").withBold();
+        ChatFormatter.StyledText msg = ChatFormatter.of("=== Homes for " + group.getName() + " ===\n\n")
+                .withColor(Color.YELLOW).withBold();
 
         Set<GroupHome> homes = group.getHomes();
         if (homes.isEmpty()) {
-            msg.append("Your group has no homes set.");
+            msg.append("Your group has no homes set.").withColor(Color.GRAY);
         } else {
             homes.stream()
                     .sorted(Comparator.comparing(GroupHome::getName))
                     .forEach(home -> {
-                        msg.append("- " + home.getName() + ": ")
-                                .append("x=" + (int) home.getX() + ", y=" + (int) home.getY() + ", z=" + (int) home.getZ() + "\n");
+                        GroupMember member = group.getMember(sender.getUuid());
+                        boolean isDefault = member != null && home.getName().equals(member.getDefaultHome());
+                        msg.append("● ").withColor(Color.GREEN)
+                                .append(home.getName()).withBold()
+                                .append(isDefault ? " (default)" : "").withColor(new Color(255, 170, 0))
+                                .append("\n")
+                                .append("  Location: ").withColor(Color.WHITE)
+                                .append("x=" + (int) home.getX() + ", y=" + (int) home.getY() + ", z=" + (int) home.getZ()).withColor(Color.CYAN)
+                                .append("\n")
+                                .append("  World: ").withColor(Color.WHITE)
+                                .append(home.getWorld().toString()).withColor(Color.GREEN)
+                                .append("\n\n");
                     });
         }
         sender.sendMessage(msg.toMessage());
@@ -873,22 +1105,53 @@ public class GroupService {
         Group group = getGroupOrNotify(sender);
         if (group == null) return;
 
-        ChatFormatter.StyledText msg = ChatFormatter.of("Diplomatic Relations for " + group.getName() + ":\n");
+        ChatFormatter.StyledText msg = ChatFormatter.of("=== Diplomatic Relations for " + group.getName() + " ===\n\n")
+                .withColor(Color.YELLOW).withBold();
 
         if (group.getDiplomaticRelations().isEmpty()) {
-            msg.append("No diplomatic relations set.");
+            msg.append("No diplomatic relations set.").withColor(Color.GRAY);
         } else {
+            // Group by status for better organization
+            Map<DiplomacyStatus, List<Group>> relationsByStatus = new HashMap<>();
+            
             group.getDiplomaticRelations().forEach((groupId, status) -> {
                 Group relatedGroup = groups.get(groupId);
                 if (relatedGroup != null) {
-                    Color color = switch (status) {
-                        case ALLY -> Color.GREEN;
-                        case NEUTRAL -> Color.GRAY;
-                        case ENEMY -> Color.RED;
-                    };
-                    msg.append("- " + relatedGroup.getName() + ": ").append(status.name()).withColor(color).append("\n");
+                    relationsByStatus.computeIfAbsent(status, k -> new ArrayList<>()).add(relatedGroup);
                 }
             });
+            
+            // Display allies first
+            if (relationsByStatus.containsKey(DiplomacyStatus.ALLY)) {
+                msg.append("Allies:\n").withColor(Color.GREEN).withBold();
+                relationsByStatus.get(DiplomacyStatus.ALLY).forEach(ally -> {
+                    msg.append("  ● ").withColor(Color.GREEN)
+                          .append(ally.getName()).withColor(Color.GREEN)
+                          .append(" (" + ally.getTag() + ")\n").withColor(Color.GRAY);
+                });
+                msg.append("\n");
+            }
+            
+            // Display enemies
+            if (relationsByStatus.containsKey(DiplomacyStatus.ENEMY)) {
+                msg.append("Enemies:\n").withColor(Color.RED).withBold();
+                relationsByStatus.get(DiplomacyStatus.ENEMY).forEach(enemy -> {
+                    msg.append("  ● ").withColor(Color.RED)
+                          .append(enemy.getName()).withColor(Color.RED)
+                          .append(" (" + enemy.getTag() + ")\n").withColor(Color.GRAY);
+                });
+                msg.append("\n");
+            }
+            
+            // Display neutral
+            if (relationsByStatus.containsKey(DiplomacyStatus.NEUTRAL)) {
+                msg.append("Neutral:\n").withColor(Color.GRAY).withBold();
+                relationsByStatus.get(DiplomacyStatus.NEUTRAL).forEach(neutral -> {
+                    msg.append("  ● ").withColor(Color.GRAY)
+                          .append(neutral.getName()).withColor(Color.GRAY)
+                          .append(" (" + neutral.getTag() + ")\n").withColor(Color.GRAY);
+                });
+            }
         }
         sender.sendMessage(msg.toMessage());
     }
@@ -1225,9 +1488,6 @@ public class GroupService {
         return null;
     }
 
-    private record GroupData(Map<UUID, Group> groups) {
-    }
-
     private record ChunkInfo(Group group, int cx, int cz, String world) {
     }
 
@@ -1250,6 +1510,21 @@ public class GroupService {
                 }
             });
         }
+    }
+
+    private void clearPlayerMapFilter(UUID playerId) {
+        Universe universe = Universe.get();
+        if (universe == null) return;
+
+        universe.getPlayers().forEach(playerRef -> {
+            if (playerRef.getUuid().equals(playerId)) {
+                Player player = playerRef.getReference().getStore().getComponent(playerRef.getReference(), Player.getComponentType());
+                WorldMapTracker mapTracker = player.getWorldMapTracker();
+                if (mapTracker != null) {
+                    MapUtils.clearMapFilter(mapTracker, playerId);
+                }
+            }
+        });
     }
 
 }
