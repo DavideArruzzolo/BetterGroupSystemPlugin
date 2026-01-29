@@ -57,11 +57,12 @@ public class DiplomacyService {
         if (group == null)
             return;
 
-        ChatFormatter.StyledText msg = ChatFormatter.of("=== Diplomatic Relations for " + group.getName() + " ===\n\n")
-                .withColor(Color.YELLOW).withBold();
+        final ChatFormatter.StyledText[] msg = {
+                ChatFormatter.of("=== Diplomatic Relations for " + group.getName() + " ===\n\n")
+                        .withColor(Color.YELLOW).withBold()};
 
         if (group.getDiplomaticRelations().isEmpty()) {
-            msg.append("No diplomatic relations set.").withColor(Color.GRAY);
+            msg[0] = msg[0].append("No diplomatic relations set.").withColor(Color.GRAY);
         } else {
 
             Map<DiplomacyStatus, List<Group>> relationsByStatus = new HashMap<>();
@@ -74,30 +75,35 @@ public class DiplomacyService {
             });
 
             if (relationsByStatus.containsKey(DiplomacyStatus.ALLY)) {
-                msg.append("Allies:\n").withColor(Color.GREEN).withBold();
-                relationsByStatus.get(DiplomacyStatus.ALLY).forEach(ally -> msg.append("  ● ").withColor(Color.GREEN)
-                        .append(ally.getName()).withColor(Color.GREEN)
-                        .append(" (" + ally.getTag() + ")\n").withColor(Color.GRAY));
-                msg.append("\n");
+                msg[0] = msg[0].append("Allies:\n").withColor(Color.GREEN).withBold();
+                for (Group ally : relationsByStatus.get(DiplomacyStatus.ALLY)) {
+                    msg[0] = msg[0].append("  ● ").withColor(Color.GREEN)
+                            .append(ally.getName()).withColor(Color.GREEN)
+                            .append(" (" + ally.getTag() + ")\n").withColor(Color.GRAY);
+                }
+                msg[0] = msg[0].append("\n");
             }
 
             if (relationsByStatus.containsKey(DiplomacyStatus.ENEMY)) {
-                msg.append("Enemies:\n").withColor(Color.RED).withBold();
-                relationsByStatus.get(DiplomacyStatus.ENEMY).forEach(enemy -> msg.append("  ● ").withColor(Color.RED)
-                        .append(enemy.getName()).withColor(Color.RED)
-                        .append(" (" + enemy.getTag() + ")\n").withColor(Color.GRAY));
-                msg.append("\n");
+                msg[0] = msg[0].append("Enemies:\n").withColor(Color.RED).withBold();
+                for (Group enemy : relationsByStatus.get(DiplomacyStatus.ENEMY)) {
+                    msg[0] = msg[0].append("  ● ").withColor(Color.RED)
+                            .append(enemy.getName()).withColor(Color.RED)
+                            .append(" (" + enemy.getTag() + ")\n").withColor(Color.GRAY);
+                }
+                msg[0] = msg[0].append("\n");
             }
 
             if (relationsByStatus.containsKey(DiplomacyStatus.NEUTRAL)) {
-                msg.append("Neutral:\n").withColor(Color.GRAY).withBold();
-                relationsByStatus.get(DiplomacyStatus.NEUTRAL)
-                        .forEach(neutral -> msg.append("  ● ").withColor(Color.GRAY)
-                                .append(neutral.getName()).withColor(Color.GRAY)
-                                .append(" (" + neutral.getTag() + ")\n").withColor(Color.GRAY));
+                msg[0] = msg[0].append("Neutral:\n").withColor(Color.GRAY).withBold();
+                for (Group neutral : relationsByStatus.get(DiplomacyStatus.NEUTRAL)) {
+                    msg[0] = msg[0].append("  ● ").withColor(Color.GRAY)
+                            .append(neutral.getName()).withColor(Color.GRAY)
+                            .append(" (" + neutral.getTag() + ")\n").withColor(Color.GRAY);
+                }
             }
         }
-        sender.sendMessage(msg.toMessage());
+        sender.sendMessage(msg[0].toMessage());
     }
 
     public void sendAllyMessage(PlayerRef sender, String[] message) {

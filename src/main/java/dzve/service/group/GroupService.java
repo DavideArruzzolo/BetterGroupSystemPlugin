@@ -126,7 +126,6 @@ public class GroupService {
     }
 
     public void shutdown() {
-        storage.shutdown();
         executor.shutdown();
         try {
             if (!executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {

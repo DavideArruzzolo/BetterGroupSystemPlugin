@@ -91,6 +91,11 @@ public class TerritoryService {
 
         Group existingOwner = getGroupByChunk(world.getName(), chunkInfo.cx, chunkInfo.cz);
         if (existingOwner != null) {
+            // Guilds cannot take territory from other groups
+            if (chunkInfo.group instanceof Guild) {
+                groupService.notify(sender, "Guilds cannot claim territory owned by other groups.");
+                return;
+            }
             if (existingOwner instanceof Faction existingFaction && existingFaction.isRaidable()) {
                 convertChunkFromRaidable(existingOwner, chunkInfo.group, chunkInfo, sender);
                 return;
@@ -262,7 +267,7 @@ public class TerritoryService {
             return;
         }
 
-        group.addHome(new GroupHome(name, sender.getWorldUuid(), sender.getTransform().getPosition().getX(),
+        group.addHome(new GroupHome(name, world.getName(), sender.getTransform().getPosition().getX(),
                 sender.getTransform().getPosition().getY(), sender.getTransform().getPosition().getZ(),
                 sender.getTransform().getRotation().getYaw(), sender.getTransform().getRotation().getPitch()));
         groupService.saveGroups();
@@ -314,7 +319,7 @@ public class TerritoryService {
             HytaleServer.SCHEDULED_EXECUTOR.schedule(() -> world.execute(() -> {
                 Teleport teleport = Teleport.createForPlayer(
                                 new Vector3d(x, y, z),
-                                new Vector3f(previousBodyRotation.getPitch(), home.getYaw(), previousBodyRotation.getRoll()))
+                                new Vector3f(home.getPitch(), home.getYaw(), 0))
                         .setHeadRotation(new Vector3f(home.getPitch(), home.getYaw(), 0));
 
                 store.addComponent(ref, Teleport.getComponentType(), teleport);
@@ -337,19 +342,19 @@ public class TerritoryService {
             return;
         }
 
-        ChatFormatter.StyledText msg = ChatFormatter.of("=== Homes for " + group.getName() + " ===\n\n")
-                .withColor(Color.YELLOW).withBold();
+        final ChatFormatter.StyledText[] msg = {ChatFormatter.of("=== Homes for " + group.getName() + " ===\n\n")
+                .withColor(Color.YELLOW).withBold()};
 
         Set<GroupHome> homes = group.getHomes();
         if (homes.isEmpty()) {
-            msg.append("Your group has no homes set.").withColor(Color.GRAY);
+            msg[0] = msg[0].append("Your group has no homes set.").withColor(Color.GRAY);
         } else {
             homes.stream()
                     .sorted(Comparator.comparing(GroupHome::getName))
                     .forEach(home -> {
                         GroupMember member = group.getMember(sender.getUuid());
-                        boolean isDefault = member != null && home.getName().equals(member.getDefaultHome());
-                        msg.append("● ").withColor(Color.GREEN)
+                        boolean isDefault = member != null && home.getId().equals(member.getDefaultHome());
+                        msg[0] = msg[0].append("● ").withColor(Color.GREEN)
                                 .append(home.getName()).withBold()
                                 .append(isDefault ? " (default)" : "").withColor(new Color(255, 170, 0))
                                 .append("\n")
@@ -359,11 +364,11 @@ public class TerritoryService {
                                 .withColor(Color.CYAN)
                                 .append("\n")
                                 .append("  World: ").withColor(Color.WHITE)
-                                .append(home.getWorld().toString()).withColor(Color.GREEN)
+                                .append(home.getWorld()).withColor(Color.GREEN)
                                 .append("\n\n");
                     });
         }
-        sender.sendMessage(msg.toMessage());
+        sender.sendMessage(msg[0].toMessage());
     }
 
     public void deleteHome(PlayerRef sender, String homeName) {

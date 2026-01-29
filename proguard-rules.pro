@@ -5,6 +5,9 @@
 -libraryjars <java.home>/jmods/java.sql.jmod(!**.jar;!module-info.class)
 -libraryjars <java.home>/jmods/java.desktop.jmod(!**.jar;!module-info.class)
 
+# Essential Attributes for Jackson and Reflection
+-keepattributes Signature,InnerClasses,*Annotation*,EnclosingMethod,SourceFile,LineNumberTable
+
 # Keep the Main Plugin Class (Entry Point) - specific methods required by Hytale
 -keep public class dzve.BetterGroupSystemPlugin {
     public <init>(com.hypixel.hytale.server.core.plugin.JavaPluginInit);

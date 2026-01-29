@@ -17,7 +17,7 @@ public class GroupHome {
     @JsonProperty("name")
     private String name;
     @JsonProperty("world")
-    private UUID world;
+    private String world;
     @JsonProperty("x")
     private double x;
     @JsonProperty("y")
@@ -29,7 +29,7 @@ public class GroupHome {
     @JsonProperty("pitch")
     private float pitch;
 
-    public GroupHome(String name, UUID world, double x, double y, double z, float yaw, float pitch) {
+    public GroupHome(String name, String world, double x, double y, double z, float yaw, float pitch) {
         this.id = UUID.randomUUID();
         this.name = name;
         this.world = world;

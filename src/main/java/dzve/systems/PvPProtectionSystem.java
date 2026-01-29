@@ -19,7 +19,7 @@ import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
 import java.awt.*;
 
 public class PvPProtectionSystem extends DamageEventSystem {
-    Config<dzve.config.BetterGroupSystemPluginConfig> config;
+    final Config<dzve.config.BetterGroupSystemPluginConfig> config;
 
     public PvPProtectionSystem(Config<BetterGroupSystemPluginConfig> config) {
         this.config = config;

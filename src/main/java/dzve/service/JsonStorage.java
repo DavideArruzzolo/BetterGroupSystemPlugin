@@ -25,7 +25,8 @@ public class JsonStorage<T> {
         this.objectMapper = new ObjectMapper()
                 .enable(SerializationFeature.INDENT_OUTPUT)
                 .registerModule(new JavaTimeModule())
-                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .enable(com.fasterxml.jackson.core.JsonGenerator.Feature.WRITE_BIGDECIMAL_AS_PLAIN);
         createFileIfNotExists();
     }
 
@@ -123,8 +124,5 @@ public class JsonStorage<T> {
         } catch (IOException e) {
             LOGGER.atSevere().withCause(e).log("Failed to restore main file from backup on disk.");
         }
-    }
-
-    public void shutdown() {
     }
 }

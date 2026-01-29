@@ -15,4 +15,5 @@ public enum Permission {
     CAN_CHAT_INTERNAL,
     CAN_CHAT_ALLY,
     CAN_UPGRADE_GUILD,
+    CAN_MANAGE_EVERYTHING,
 }

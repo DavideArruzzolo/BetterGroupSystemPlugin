@@ -58,13 +58,22 @@ dependencies {
     compileOnly("org.projectlombok:lombok:1.18.42")
 
     // Dependencies to be bundled into the final JAR
-    bundledImplementation("com.fasterxml.jackson.core:jackson-databind:2.21.0")
-    bundledImplementation("com.fasterxml.jackson.core:jackson-core:2.21.0")
-    bundledImplementation("com.fasterxml.jackson.core:jackson-annotations:2.21")
-    bundledImplementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.0")
+    bundledImplementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+    bundledImplementation("com.fasterxml.jackson.core:jackson-core:2.15.2")
+    bundledImplementation("com.fasterxml.jackson.core:jackson-annotations:2.15.2")
+    bundledImplementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2")
 
     annotationProcessor("org.projectlombok:lombok:1.18.42")
     proguard("com.guardsquare:proguard-base:7.8.2")
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.1'
+    testImplementation 'org.projectlombok:lombok:1.18.42'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.42'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 

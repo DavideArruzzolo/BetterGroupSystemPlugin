@@ -12,7 +12,6 @@ import java.util.UUID;
  */
 public class MapUtils {
 
-    @SuppressWarnings("deprecation")
     public static void updateMapFilter(WorldMapTracker mapTracker, UUID playerId, GroupService service) {
         mapTracker.setPlayerMapFilter(otherPlayer -> {
             UUID otherPlayerId = otherPlayer.getUuid();
@@ -41,7 +40,6 @@ public class MapUtils {
         });
     }
 
-    @SuppressWarnings("deprecation")
     public static void clearMapFilter(WorldMapTracker mapTracker, UUID playerId) {
         mapTracker.setPlayerMapFilter(otherPlayer -> {
             UUID otherPlayerId = otherPlayer.getUuid();
