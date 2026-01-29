@@ -68,6 +68,7 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
         addSubCommand(new DiplomacyCommand(groupService));
         addSubCommand(new ListDiplomacyCommand(groupService));
         addSubCommand(new ListInvitationsCommand(groupService));
+        addSubCommand(new ListMembersCommand(groupService));
     }
 
     @Override

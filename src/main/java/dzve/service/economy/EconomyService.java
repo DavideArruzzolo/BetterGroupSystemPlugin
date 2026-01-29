@@ -1,11 +1,13 @@
 package dzve.service.economy;
 
+import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import dzve.model.Group;
 import dzve.model.Permission;
 import dzve.service.group.GroupService;
 
 public class EconomyService {
+    private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
 
     private final GroupService groupService;
 
@@ -35,11 +37,10 @@ public class EconomyService {
         }
 
         group.withdrawFromGroup(amount, sender.getUuid());
-        group.deposit(amount, sender.getUuid());
+        LOGGER.atInfo().log("Player {} withdrew {} from group {}", sender.getUsername(), amount, group.getName());
 
         groupService.saveGroups();
-        groupService.notify(sender, "Withdrawn " + amount + ". New balance: " + group.getBalance(sender.getUuid()),
-                false);
+        groupService.notify(sender, "Withdrawn " + amount + " from group bank.", false);
     }
 
     public void withdrawFromGroup(PlayerRef sender, double amount) {
@@ -60,6 +61,8 @@ public class EconomyService {
         if (group instanceof dzve.model.Guild guild) {
             guild.getMoneyContributions().merge(sender.getUuid(), amount, Double::sum);
         }
+        LOGGER.atInfo().log("Player {} deposited {} to personal balance in group {}", sender.getUsername(), amount,
+                group.getName());
 
         groupService.saveGroups();
         groupService.notify(sender, "Deposited " + amount, false);
@@ -87,6 +90,7 @@ public class EconomyService {
         if (group instanceof dzve.model.Guild guild) {
             guild.getMoneyContributions().merge(sender.getUuid(), amount, Double::sum);
         }
+        LOGGER.atInfo().log("Player {} deposited {} to group bank {}", sender.getUsername(), amount, group.getName());
 
         groupService.saveGroups();
         groupService.notify(sender, "Deposited " + amount + " to group bank.", false);

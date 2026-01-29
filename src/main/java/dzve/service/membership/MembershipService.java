@@ -457,4 +457,49 @@ public class MembershipService {
         }
         sender.sendMessage(msg[0].toMessage());
     }
+
+    public void listMembers(PlayerRef sender) {
+        Group group = groupService.getGroupOrNotify(sender);
+        if (group == null)
+            return;
+
+        final ChatFormatter.StyledText[] msg = {ChatFormatter.of("=== Members of " + group.getName() + " ===\n\n")
+                .withColor(Color.YELLOW).withBold()};
+
+        if (group.getMembers().isEmpty()) {
+            msg[0] = msg[0].append("No members found.").withColor(Color.GRAY);
+        } else {
+            group.getMembers().stream()
+                    .sorted((a, b) -> {
+                        GroupRole roleA = group.getRole(a.getRoleId());
+                        GroupRole roleB = group.getRole(b.getRoleId());
+                        int priorityA = roleA != null ? roleA.getPriority() : 0;
+                        int priorityB = roleB != null ? roleB.getPriority() : 0;
+                        return Integer.compare(priorityB, priorityA);
+                    })
+                    .forEach(member -> {
+                        GroupRole role = group.getRole(member.getRoleId());
+                        String roleName = role != null ? role.getName() : "Unknown";
+                        boolean isLeader = member.getPlayerId().equals(group.getLeaderId());
+
+                        msg[0] = msg[0].append("● ").withColor(isLeader ? new Color(255, 215, 0) : Color.GREEN)
+                                .append(member.getPlayerName()).withBold()
+                                .append(isLeader ? " ★" : "").withColor(new Color(255, 215, 0))
+                                .append("\n")
+                                .append("  Role: ").withColor(Color.WHITE)
+                                .append(roleName).withColor(Color.CYAN)
+                                .append("\n")
+                                .append("  Balance: ").withColor(Color.WHITE)
+                                .append(String.format("%.2f", member.getBankBalance()))
+                                .withColor(new Color(255, 170, 0))
+                                .append("\n")
+                                .append("  Joined: ").withColor(Color.WHITE)
+                                .append(member.getJoinDate() != null ? member.getJoinDate().toLocalDate().toString()
+                                        : "N/A")
+                                .withColor(Color.GRAY)
+                                .append("\n\n");
+                    });
+        }
+        sender.sendMessage(msg[0].toMessage());
+    }
 }

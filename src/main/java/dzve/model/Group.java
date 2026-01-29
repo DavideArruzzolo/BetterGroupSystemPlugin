@@ -81,7 +81,8 @@ public abstract class Group {
         }
         this.leaderId = player.getUuid();
 
-        addMember(player, roles.stream().findFirst().orElseThrow().getId());
+        addMember(player,
+                roles.stream().max(java.util.Comparator.comparingInt(GroupRole::getPriority)).orElseThrow().getId());
     }
 
     @JsonIgnore
