@@ -9,6 +9,7 @@ import dzve.model.GroupMember;
 import dzve.model.GroupRole;
 import dzve.service.NotificationService;
 import dzve.service.group.GroupService;
+import dzve.utils.LogService;
 
 import java.util.UUID;
 
@@ -63,9 +64,10 @@ public class AdminService {
 
         // Remove group from storage
         groupService.removeGroup(group);
-        groupService.saveGroups();
+        // groupService.saveGroups(); // Handled by removeGroup
 
         groupService.notify(admin, "Group '" + groupName + "' has been disbanded.", false);
+        LogService.info("ADMIN", "Admin disbanded group", "admin", admin.getUsername(), "group", groupName);
     }
 
     /**
@@ -98,7 +100,9 @@ public class AdminService {
 
         group.removeMember(targetMember.getPlayerId());
         groupService.removePlayerFromGroupMap(targetMember.getPlayerId());
-        groupService.saveGroups();
+
+        // Granular persistence
+        groupService.persistRemoveMember(group.getId(), targetMember.getPlayerId());
 
         // Notify kicked player if online
         Universe.get().getPlayers().stream()
@@ -108,6 +112,8 @@ public class AdminService {
                         "You have been kicked from " + group.getName() + " by an administrator."));
 
         groupService.notify(admin, "Kicked '" + targetName + "' from '" + groupName + "'.", false);
+        LogService.info("ADMIN", "Admin kicked member", "admin", admin.getUsername(), "target", targetName, "group",
+                groupName);
     }
 
     /**
@@ -156,7 +162,12 @@ public class AdminService {
             group.changeMemberRole(oldLeaderId, defaultRole.getId());
         }
 
-        groupService.saveGroups();
+        // Granular persistence
+        groupService.persistUpdateGroup(group); // Update leader_id
+        if (oldLeader != null) {
+            groupService.persistUpdateMember(group.getId(), oldLeader);
+        }
+        groupService.persistUpdateMember(group.getId(), group.getMember(newLeaderId));
 
         // Notify group members
         notificationService.broadcastGroup(
@@ -167,6 +178,8 @@ public class AdminService {
                 Success);
 
         groupService.notify(admin, "Set '" + targetName + "' as leader of '" + groupName + "'.", false);
+        LogService.info("ADMIN", "Admin set leader", "admin", admin.getUsername(), "group", groupName, "new_leader",
+                targetName);
     }
 
     /**
@@ -198,7 +211,11 @@ public class AdminService {
             group2.setDiplomacyStatus(group1.getId(), status);
         }
 
-        groupService.saveGroups();
+        // Granular persistence
+        groupService.persistSetDiplomacy(group1.getId(), group2.getId(), status);
+        if (status == DiplomacyStatus.ALLY) {
+            groupService.persistSetDiplomacy(group2.getId(), group1.getId(), status);
+        }
 
         // Notify both groups
         String message = "Diplomacy with "
@@ -218,6 +235,8 @@ public class AdminService {
         }
 
         groupService.notify(admin, "Set diplomacy " + group1Name + " <-> " + group2Name + " to " + status, false);
+        LogService.info("ADMIN", "Admin set diplomacy", "admin", admin.getUsername(), "group1", group1Name, "group2",
+                group2Name, "status", status);
     }
 
     /**
@@ -252,7 +271,9 @@ public class AdminService {
 
         double oldBalance = group.getBankBalance();
         group.setBankBalance(amount);
-        groupService.saveGroups();
+
+        // Granular persistence
+        groupService.persistUpdateGroup(group);
 
         groupService.notify(admin, "Set " + groupName + " bank balance from " +
                 String.format("%.2f", oldBalance) + " to " + String.format("%.2f", amount), false);
@@ -262,6 +283,9 @@ public class AdminService {
                 group.getMembers().stream().map(GroupMember::getPlayerId).toList(),
                 "Group bank balance set to " + String.format("%.2f", amount) + " by administrator.",
                 Success);
+
+        LogService.info("ADMIN", "Admin set group money", "admin", admin.getUsername(), "group", groupName,
+                "old_balance", oldBalance, "new_balance", amount);
     }
 
     /**
@@ -298,10 +322,15 @@ public class AdminService {
 
         double oldBalance = member.getBankBalance();
         member.setBankBalance(amount);
-        groupService.saveGroups();
+
+        // Granular persistence
+        groupService.persistUpdateMember(group.getId(), member);
 
         groupService.notify(admin, "Set " + playerName + "'s balance from " +
                 String.format("%.2f", oldBalance) + " to " + String.format("%.2f", amount), false);
+
+        LogService.info("ADMIN", "Admin set player money", "admin", admin.getUsername(), "player", playerName,
+                "old_balance", oldBalance, "new_balance", amount);
     }
 
     /**
@@ -324,6 +353,7 @@ public class AdminService {
         try {
             PermissionsModule.get().addUserPermission(targetPlayerId, java.util.Set.of(ADMIN_PERMISSION));
             groupService.notify(admin, "Granted admin permission to " + targetName, false);
+            LogService.info("ADMIN", "Granted admin permission", "admin", admin.getUsername(), "target", targetName);
         } catch (Exception e) {
             groupService.notify(admin, "Failed to grant permission: " + e.getMessage());
         }
@@ -345,6 +375,7 @@ public class AdminService {
         try {
             PermissionsModule.get().removeUserPermission(targetPlayerId, java.util.Set.of(ADMIN_PERMISSION));
             groupService.notify(admin, "Revoked admin permission from " + targetName, false);
+            LogService.info("ADMIN", "Revoked admin permission", "admin", admin.getUsername(), "target", targetName);
         } catch (Exception e) {
             groupService.notify(admin, "Failed to revoke permission: " + e.getMessage());
         }

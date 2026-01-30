@@ -2,7 +2,6 @@ package dzve.service.group;
 
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
-import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -11,19 +10,18 @@ import com.hypixel.hytale.server.core.universe.world.WorldMapTracker;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.model.*;
-import dzve.service.JsonStorage;
 import dzve.service.NotificationService;
 import dzve.service.diplomacy.DiplomacyService;
 import dzve.service.economy.EconomyService;
 import dzve.service.membership.MembershipService;
 import dzve.service.territory.TerritoryService;
 import dzve.utils.ChatFormatter;
+import dzve.utils.LogService;
 import dzve.utils.MapUtils;
 import lombok.Getter;
 
 import javax.annotation.Nullable;
 import java.awt.*;
-import java.io.File;
 import java.text.Normalizer;
 import java.util.*;
 import java.util.List;
@@ -33,18 +31,18 @@ import java.util.regex.Pattern;
 import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Danger;
 import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Success;
 import static dzve.config.BetterGroupSystemPluginConfig.DATA_FOLDER;
-import static dzve.config.BetterGroupSystemPluginConfig.FILE_NAME;
 import static dzve.model.GroupType.FACTION;
 
 public class GroupService {
 
-    private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
+    // private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     private static final GroupService instance = new GroupService();
     private static final NotificationService notificationService = NotificationService.getInstance();
     private static final Pattern NAME_PATTERN = Pattern.compile("^[\\p{L}\\p{N}_]+$");
     private static final Pattern HEX_PATTERN = Pattern.compile("^#[0-9a-fA-F]{6}$");
     private static BetterGroupSystemPluginConfig config = null;
-    private final JsonStorage<GroupData> storage;
+    private final dzve.database.DatabaseManager dbManager;
+    private final dzve.database.dao.GroupDao groupDao;
     private final Map<UUID, Group> groups = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> playerGroupMap = new ConcurrentHashMap<>();
 
@@ -64,12 +62,22 @@ public class GroupService {
             .newSingleThreadExecutor();
 
     private GroupService() {
-        this.storage = new JsonStorage<>(new File(DATA_FOLDER, FILE_NAME), GroupData.class);
+        this.dbManager = new dzve.database.DatabaseManager(DATA_FOLDER);
+        try {
+            this.dbManager.connect();
+        } catch (Exception e) {
+            LogService.error("GROUP_SERVICE", "Failed to connect to database!", e);
+        }
+        this.groupDao = new dzve.database.dao.GroupDao(dbManager);
+
         this.territoryService = new TerritoryService(this);
         this.economyService = new EconomyService(this);
         this.diplomacyService = new DiplomacyService(this);
         this.membershipService = new MembershipService(this);
         loadGroups();
+
+        // Start Sync Job
+        // startSyncJob();
     }
 
     public static BetterGroupSystemPluginConfig getConfig() {
@@ -100,7 +108,7 @@ public class GroupService {
             if (betterGroupSystemPluginConfig != null) {
                 initialize(betterGroupSystemPluginConfig);
             } else {
-                LOGGER.atWarning().log("GroupService.getInstance(null) called before config initialization!");
+                LogService.warn("GROUP_SERVICE", "GroupService.getInstance(null) called before config initialization!");
             }
         }
         return instance;
@@ -112,12 +120,26 @@ public class GroupService {
         namesGroups.clear();
         tagsGroups.clear();
         territoryService.clearCache();
-        GroupData data = storage.load();
-        if (data != null && data.getGroups() != null) {
-            this.groups.putAll(data.getGroups());
+
+        Map<UUID, Group> loadedGroups = groupDao.loadAllGroups();
+        if (loadedGroups != null) {
+            this.groups.putAll(loadedGroups);
             groups.values().forEach(this::cacheGroupData);
-            LOGGER.atInfo().log("Loaded " + groups.size() + " groups.");
+            LogService.info("GROUP_SERVICE", "Loaded " + groups.size() + " groups from database.");
         }
+
+        // Load claims into territory service (if not already handled by cacheGroupData
+        // which iterates groups)
+        // Since loadAllGroups loads claims into the memory objects (TODO: verify this),
+        // OR we load claims separately.
+        // My GroupDao.loadAllGroups does NOT currently populate the `claims` Set in
+        // Group.
+        // It's cleaner if TerritoryService manages its own cache or we populate
+        // Group.claims.
+        // Let's populate the TerritoryService cache directly from Dao.
+
+        Map<String, UUID> loadedClaims = groupDao.loadAllClaims();
+        territoryService.loadClaims(loadedClaims);
     }
 
     public void reload(PlayerRef player) {
@@ -144,21 +166,9 @@ public class GroupService {
         territoryService.cacheGroupClaims(group);
     }
 
+    // Deprecated: No longer used, data is saved granularly
     public void saveGroups() {
-
-        Map<UUID, Group> groupsCopy = new HashMap<>();
-        for (Map.Entry<UUID, Group> entry : this.groups.entrySet()) {
-            groupsCopy.put(entry.getKey(), entry.getValue().copy());
-        }
-        GroupData dataToSave = new GroupData(groupsCopy);
-
-        executor.submit(() -> {
-            try {
-                storage.save(dataToSave);
-            } catch (Exception e) {
-                LOGGER.atSevere().withCause(e).log("Failed to save groups");
-            }
-        });
+        // No-op or trigger a full save if absolutely needed (expensive)
     }
 
     public void invitePlayer(PlayerRef sender, PlayerRef target) {
@@ -199,7 +209,9 @@ public class GroupService {
 
         groups.put(group.getId(), group);
         cacheGroupData(group);
-        saveGroups();
+
+        // Database persist
+        executor.submit(() -> groupDao.createGroup(group));
 
         updateGroupMaps(group);
 
@@ -224,7 +236,10 @@ public class GroupService {
         territoryService.uncacheGroupClaims(group);
 
         groups.remove(group.getId());
-        saveGroups();
+
+        // Database removal
+        executor.submit(() -> groupDao.deleteGroup(group.getId()));
+
         notify(player, "Group deleted.", false);
     }
 
@@ -301,7 +316,9 @@ public class GroupService {
                 return;
             }
         }
-        saveGroups();
+
+        // Database update
+        executor.submit(() -> groupDao.updateGroup(group));
 
         if ("name".equalsIgnoreCase(type) || "tag".equalsIgnoreCase(type)) {
 
@@ -611,6 +628,9 @@ public class GroupService {
         });
         territoryService.uncacheGroupClaims(group);
         groups.remove(group.getId());
+
+        // Also delete from database
+        executor.submit(() -> groupDao.deleteGroup(group.getId()));
     }
 
     public void updatePlayerGroupMap(UUID playerId, UUID groupId) {
@@ -781,7 +801,60 @@ public class GroupService {
         });
     }
 
-    private record ChunkInfo(Group group, int cx, int cz, String world) {
+    // Persistence delegates for other services
+    public void persistAddClaim(UUID groupId, String world, int x, int z) {
+        executor.submit(() -> groupDao.addClaim(groupId, world, x, z));
     }
+
+    public void persistRemoveClaim(String world, int x, int z) {
+        executor.submit(() -> groupDao.removeClaim(world, x, z));
+    }
+
+    // --- Members ---
+    public void persistAddMember(UUID groupId, GroupMember member) {
+        executor.submit(() -> groupDao.addMember(groupId, member));
+    }
+
+    public void persistRemoveMember(UUID groupId, UUID playerId) {
+        executor.submit(() -> groupDao.removeMember(groupId, playerId));
+    }
+
+    public void persistUpdateMember(UUID groupId, GroupMember member) {
+        executor.submit(() -> groupDao.updateMember(groupId, member));
+    }
+
+    // --- Roles ---
+    public void persistCreateRole(UUID groupId, GroupRole role) {
+        executor.submit(() -> groupDao.createRole(groupId, role));
+    }
+
+    public void persistUpdateRole(UUID groupId, GroupRole role) {
+        executor.submit(() -> groupDao.updateRole(groupId, role));
+    }
+
+    public void persistDeleteRole(UUID roleId) {
+        executor.submit(() -> groupDao.deleteRole(roleId));
+    }
+
+    // --- Homes ---
+    public void persistSaveHome(UUID groupId, GroupHome home) {
+        executor.submit(() -> groupDao.saveHome(groupId, home));
+    }
+
+    public void persistDeleteHome(UUID groupId, String homeName) {
+        executor.submit(() -> groupDao.deleteHome(groupId, homeName));
+    }
+
+    // --- Diplomacy ---
+    public void persistSetDiplomacy(UUID g1, UUID g2, DiplomacyStatus status) {
+        executor.submit(() -> groupDao.setDiplomacy(g1, g2, status));
+    }
+
+    public void persistUpdateGroup(Group group) {
+        executor.submit(() -> groupDao.updateGroup(group));
+    }
+
+    // Removing unused legacy record
+    // private record ChunkInfo(Group group, int cx, int cz, String world) {}
 
 }

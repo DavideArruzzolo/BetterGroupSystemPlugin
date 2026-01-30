@@ -8,6 +8,10 @@
 # Essential Attributes for Jackson and Reflection
 -keepattributes Signature,InnerClasses,*Annotation*,EnclosingMethod,SourceFile,LineNumberTable
 
+# Keep SQLite JDBC Driver
+-keep class org.sqlite.** { *; }
+-keep interface org.sqlite.** { *; }
+
 # Keep the Main Plugin Class (Entry Point) - specific methods required by Hytale
 -keep public class dzve.BetterGroupSystemPlugin {
     public <init>(com.hypixel.hytale.server.core.plugin.JavaPluginInit);
@@ -53,6 +57,7 @@
 -dontwarn java.sql.**
 -dontwarn java.beans.**
 -dontwarn java.awt.**
+-dontwarn org.slf4j.**
 
 -optimizationpasses 3
 -optimizations !code/simplification/arithmetic,!field/*,!class/merging/*

@@ -26,6 +26,10 @@ public class GroupMember {
     private UUID defaultHome;
     @JsonProperty("bankBalance")
     private double bankBalance;
+    @JsonProperty("power")
+    private double power;
+    @JsonProperty("contribution")
+    private double contribution;
 
     public GroupMember(UUID playerId, String playerName, UUID roleId) {
         this.playerId = playerId;
@@ -44,6 +48,8 @@ public class GroupMember {
                 .lastActive(this.lastActive)
                 .defaultHome(this.defaultHome)
                 .bankBalance(this.bankBalance)
+                .power(this.power)
+                .contribution(this.contribution)
                 .build();
     }
 }

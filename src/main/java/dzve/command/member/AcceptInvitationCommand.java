@@ -19,12 +19,13 @@ public class AcceptInvitationCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> groupName = withRequiredArg("groupName", "Name of the group", ArgTypes.STRING);
 
     public AcceptInvitationCommand(GroupService groupService) {
-        super("accept", "Accept a group invitation");
+        super("acceptInvite", "Accept a group invitation");
         this.groupService = groupService;
     }
 
     @Override
-    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
+                           @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
         groupService.acceptInvitation(player, groupName.get(ctx));
     }
 }

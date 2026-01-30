@@ -19,12 +19,13 @@ public class DeleteHomeCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> name = withRequiredArg("name", "Home name", ArgTypes.STRING);
 
     public DeleteHomeCommand(GroupService groupService) {
-        super("removeHome", "Delete a group home");
+        super("deleteHome", "Delete a group home");
         this.groupService = groupService;
     }
 
     @Override
-    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
+                           @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
         groupService.deleteHome(player, name.get(ctx));
     }
 }

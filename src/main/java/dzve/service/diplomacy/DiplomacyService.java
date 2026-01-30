@@ -9,6 +9,7 @@ import dzve.model.Permission;
 import dzve.service.NotificationService;
 import dzve.service.group.GroupService;
 import dzve.utils.ChatFormatter;
+import dzve.utils.LogService;
 
 import java.awt.*;
 import java.util.*;
@@ -33,6 +34,9 @@ public class DiplomacyService {
         Group group = groupService.getGroupOrNotify(sender);
         if (group == null)
             return;
+
+        LogService.debug("DIPLOMACY", "Setting diplomacy", "sender", sender.getUsername(), "target", targetGroupName,
+                "status", status);
 
         if (!groupService.hasPerm(group, sender, Permission.CAN_MANAGE_DIPLOMACY)) {
             return;
@@ -64,10 +68,28 @@ public class DiplomacyService {
                         target.getMembers().stream().map(GroupMember::getPlayerId).toList(),
                         group.getName() + " has broken the alliance with your group.",
                         Warning);
+
+                // Persist the target's side of the broken alliance
+                groupService.persistSetDiplomacy(target.getId(), group.getId(), DiplomacyStatus.NEUTRAL);
             } else {
                 group.setDiplomacyStatus(target.getId(), status);
             }
-            groupService.saveGroups();
+
+            groupService.persistSetDiplomacy(group.getId(), target.getId(), status);
+            // Bidirectional?
+            // "The other group sees us as NEUTRAL?" -> No, diplomacy table is bidirectional
+            // logically if we insert (g1, g2, status).
+            // My DAO sets (g1, g2, status). It doesn't autoset (g2, g1, status) unless I
+            // call it.
+            // But previous logic was: group.setDiplomacy(target, status). Target wasn't
+            // updated in memory?
+            // "target.setDiplomacyStatus(group.getId(), DiplomacyStatus.NEUTRAL);" was
+            // called above for breaking alliance.
+            // But if just setting ENEMY, it only updated 'group'.
+
+            // If I want to persist strictly what happened in memory:
+            // persistSetDiplomacy(group.getId(), target.getId(), status);
+
             groupService.notify(sender, "Diplomacy with " + target.getName() + " set to " + status, false);
         }
     }
@@ -76,6 +98,7 @@ public class DiplomacyService {
      * Send an alliance request to another group.
      */
     private void sendAllyRequest(PlayerRef sender, Group from, Group to) {
+        LogService.debug("DIPLOMACY", "Sending ally request", "from", from.getName(), "to", to.getName());
         // Check if already allied
         if (from.getDiplomacyStatus(to.getId()) == DiplomacyStatus.ALLY) {
             groupService.notify(sender, "You are already allied with " + to.getName() + ".");
@@ -218,9 +241,12 @@ public class DiplomacyService {
      * Establish a bidirectional alliance between two groups.
      */
     private void establishAlliance(Group group1, Group group2) {
+        LogService.info("DIPLOMACY", "Establishing alliance", "group1", group1.getName(), "group2", group2.getName());
         group1.setDiplomacyStatus(group2.getId(), DiplomacyStatus.ALLY);
         group2.setDiplomacyStatus(group1.getId(), DiplomacyStatus.ALLY);
-        groupService.saveGroups();
+
+        groupService.persistSetDiplomacy(group1.getId(), group2.getId(), DiplomacyStatus.ALLY);
+        groupService.persistSetDiplomacy(group2.getId(), group1.getId(), DiplomacyStatus.ALLY);
     }
 
     public void listDiplomacy(PlayerRef sender) {

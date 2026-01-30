@@ -6,6 +6,7 @@ import dzve.model.*;
 import dzve.service.NotificationService;
 import dzve.service.group.GroupService;
 import dzve.utils.ChatFormatter;
+import dzve.utils.LogService;
 
 import java.awt.*;
 import java.util.*;
@@ -33,6 +34,9 @@ public class MembershipService {
         if (group == null || !groupService.hasPerm(group, sender, Permission.CAN_INVITE))
             return;
 
+        LogService.debug("MEMBERSHIP", "Inviting player", "sender", sender.getUsername(), "target",
+                target.getUsername(), "group", group.getName());
+
         if (groupService.getPlayerGroup(target.getUuid()) != null) {
             groupService.notify(sender, "Player already in a group.");
             return;
@@ -57,6 +61,8 @@ public class MembershipService {
             return;
         }
 
+        LogService.debug("MEMBERSHIP", "Accepting invitation", "player", player.getUsername(), "group", groupName);
+
         Group group = groupService.getGroupByName(groupName);
         if (group == null) {
             groupService.notify(player, "Group not found.");
@@ -77,7 +83,11 @@ public class MembershipService {
         group.addMember(player, defaultRole.getId());
         groupService.updatePlayerGroupMap(player.getUuid(), group.getId());
         invites.remove(group.getId());
-        groupService.saveGroups();
+
+        // Persist
+        GroupMember newMember = group.getMember(player.getUuid());
+        groupService.persistAddMember(group.getId(), newMember);
+
         groupService.notify(player, "Joined " + group.getName(), false);
 
         groupService.updateGroupMaps(group);
@@ -115,9 +125,13 @@ public class MembershipService {
         }
 
         group.removeMember(targetId);
+        LogService.info("MEMBERSHIP", "Kicked member", "kicker", sender.getUsername(), "targetId", targetId.toString(),
+                "group", group.getName());
         groupService.removePlayerFromGroupMap(targetId);
         groupService.clearPlayerMapFilter(targetId);
-        groupService.saveGroups();
+
+        groupService.persistRemoveMember(group.getId(), targetId);
+
         groupService.notify(sender, "Member kicked.", false);
 
         PlayerRef targetPlayer = Universe.get().getPlayer(targetId);
@@ -151,7 +165,9 @@ public class MembershipService {
             group.removeMember(player.getUuid());
             groupService.removePlayerFromGroupMap(player.getUuid());
             groupService.clearPlayerMapFilter(player.getUuid());
-            groupService.saveGroups();
+
+            groupService.persistRemoveMember(group.getId(), player.getUuid());
+
             groupService.notify(player, "You left the group.", false);
 
             notificationService.broadcastGroup(
@@ -180,7 +196,11 @@ public class MembershipService {
         group.setLeaderId(targetId);
         group.changeMemberRole(targetId, leaderRole.getId());
         group.changeMemberRole(sender.getUuid(), memberRole.getId());
-        groupService.saveGroups();
+
+        groupService.persistUpdateGroup(group);
+        groupService.persistUpdateMember(group.getId(), group.getMember(targetId));
+        groupService.persistUpdateMember(group.getId(), group.getMember(sender.getUuid()));
+
         groupService.notify(sender, "Leadership transferred.", false);
 
         PlayerRef targetPlayer = Universe.get().getPlayer(targetId);
@@ -209,7 +229,10 @@ public class MembershipService {
             return;
         }
 
-        modifyRoles(group, roles -> roles.add(new GroupRole(name, name, 10, false, perms)));
+        GroupRole newRole = new GroupRole(name, name, 10, false, perms);
+        modifyRoles(group, roles -> roles.add(newRole));
+        groupService.persistCreateRole(group.getId(), newRole);
+
         groupService.notify(sender, "Role created.", false);
     }
 
@@ -233,6 +256,8 @@ public class MembershipService {
         }
 
         modifyRoles(group, roles -> roles.remove(role));
+        groupService.persistDeleteRole(role.getId());
+
         groupService.notify(sender, "Role deleted.", false);
     }
 
@@ -263,7 +288,9 @@ public class MembershipService {
         }
 
         role.setPermissions(perms);
-        groupService.saveGroups();
+
+        groupService.persistUpdateRole(group.getId(), role);
+
         groupService.notify(sender, "Role permissions updated.", false);
     }
 
@@ -300,7 +327,9 @@ public class MembershipService {
         }
 
         group.changeMemberRole(targetId, role.getId());
-        groupService.saveGroups();
+
+        groupService.persistUpdateMember(group.getId(), group.getMember(targetId));
+
         groupService.notify(sender, "Role updated successfully.", false);
     }
 
@@ -334,7 +363,7 @@ public class MembershipService {
         Set<GroupRole> mutable = new HashSet<>(g.getRoles());
         modifier.accept(mutable);
         g.setRoles(mutable);
-        groupService.saveGroups();
+        // groupService.saveGroups(); // Handled by caller granularly
     }
 
     private Set<Permission> parsePerms(List<String> list) {

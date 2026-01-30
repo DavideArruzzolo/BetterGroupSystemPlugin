@@ -26,7 +26,7 @@ public class AcceptAllyCommand extends AbstractPlayerCommand {
             ArgTypes.STRING);
 
     public AcceptAllyCommand(GroupService groupService) {
-        super("acceptally", "Accept an alliance request from another group");
+        super("acceptAlly", "Accept an alliance request from another group");
         this.groupService = groupService;
     }
 

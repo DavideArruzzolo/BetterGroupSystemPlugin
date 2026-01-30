@@ -20,7 +20,7 @@ public class ListAllyRequestsCommand extends AbstractPlayerCommand {
     private final GroupService groupService;
 
     public ListAllyRequestsCommand(GroupService groupService) {
-        super("allyrequests", "List pending alliance requests");
+        super("allyRequests", "List pending alliance requests");
         this.groupService = groupService;
     }
 

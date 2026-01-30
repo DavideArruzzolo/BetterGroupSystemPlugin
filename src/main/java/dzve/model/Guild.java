@@ -6,8 +6,6 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 @EqualsAndHashCode(callSuper = true)
@@ -25,13 +23,8 @@ public class Guild extends Group {
     @JsonProperty("moneyToNextLevel")
     private double moneyToNextLevel = 0.0;
 
-    @Builder.Default
-    @JsonProperty("moneyContributions")
-    private Map<UUID, Double> moneyContributions = new HashMap<>();
-
     public Guild(String name, String tag, String description, String color, PlayerRef player) {
         super(name, tag, description, color, player);
-        this.moneyContributions = new HashMap<>();
     }
 
     @Override
@@ -42,10 +35,7 @@ public class Guild extends Group {
     @Override
     public void addMember(PlayerRef player, UUID roleId) {
         super.addMember(player, roleId);
-        if (moneyContributions == null) {
-            moneyContributions = new HashMap<>();
-        }
-        moneyContributions.put(player.getUuid(), 0.0);
+        // Default contribution is 0, already set in GroupMember
     }
 
     @Override
@@ -69,7 +59,6 @@ public class Guild extends Group {
         super.copyTo(copy);
         copy.setLevel(this.level);
         copy.setMoneyToNextLevel(this.moneyToNextLevel);
-        copy.setMoneyContributions(new HashMap<>(this.moneyContributions));
         return copy;
     }
 }

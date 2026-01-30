@@ -10,6 +10,7 @@ import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.util.NotificationUtil;
 import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.service.group.GroupService;
+import dzve.utils.LogService;
 
 import java.util.List;
 import java.util.Objects;
@@ -23,6 +24,8 @@ public final class NotificationService {
     }
 
     public void broadcastGroup(List<UUID> players, String message, NotificationStyle style) {
+        // LogService.debug("NOTIFICATION", "Broadcasting to group", "count",
+        // players.size(), "message", message);
         for (UUID player : players) {
             sendNotification(player, message, style);
         }
@@ -31,6 +34,9 @@ public final class NotificationService {
     public void sendNotification(UUID playerUuid, String message, NotificationStyle style) {
         Objects.requireNonNull(playerUuid, "Player UUID cannot be null");
         Objects.requireNonNull(message, "Secondary message cannot be null");
+
+        LogService.debug("NOTIFICATION", "Sending notification", "player", playerUuid, "style", style, "message",
+                message);
 
         String prefix = buildNotificationPrefix(style);
         String icon = GroupService.getConfig().getNotificationIcon();

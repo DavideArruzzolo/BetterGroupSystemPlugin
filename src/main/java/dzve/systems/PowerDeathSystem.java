@@ -14,6 +14,7 @@ import dzve.model.Faction;
 import dzve.model.Group;
 import dzve.service.NotificationService;
 import dzve.service.group.GroupService;
+import dzve.utils.LogService;
 
 import javax.annotation.Nonnull;
 import java.util.UUID;
@@ -57,10 +58,16 @@ public class PowerDeathSystem extends DeathSystems.OnDeathSystem {
         victimFaction.removePlayerPower(victimId, powerLoss);
         victimFaction.incrementDeaths();
 
-        GroupService.getInstance().saveGroups();
+        // Persist modifications
+        GroupService gs = GroupService.getInstance();
+        gs.persistUpdateGroup(victimFaction); // Saves deaths
+        gs.persistUpdateMember(victimFaction.getId(), victimFaction.getMember(victimId)); // Saves power
 
         notificationService.sendNotification(victimId,
                 "You lost " + powerLoss + " power from death!", Default);
+
+        LogService.info("POWER", "Player lost power on death", "victim", playerRef.getUsername(), "loss", powerLoss,
+                "remaining", victimFaction.getPlayerPower(victimId));
 
         UUID killerId = DamageTrackerSystem.lastAttackerMap.remove(victimId);
         if (killerId != null) {
@@ -73,11 +80,16 @@ public class PowerDeathSystem extends DeathSystems.OnDeathSystem {
                     killerFaction.addPlayerPower(killerId, powerGain);
                     killerFaction.incrementKills();
 
-                    GroupService.getInstance().saveGroups();
+                    // Persist modifications
+                    gs.persistUpdateGroup(killerFaction); // Saves kills
+                    gs.persistUpdateMember(killerFaction.getId(), killerFaction.getMember(killerId)); // Saves power
 
                     notificationService.sendNotification(killerId,
                             "You gained " + powerGain + " power from killing " + playerRef.getUsername() + "!",
                             Default);
+
+                    LogService.info("POWER", "Player gained power from kill", "killer", killerId.toString(), "victim",
+                            playerRef.getUsername(), "gain", powerGain);
                 }
             }
         }

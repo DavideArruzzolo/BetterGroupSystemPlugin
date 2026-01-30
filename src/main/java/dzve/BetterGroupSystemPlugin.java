@@ -19,6 +19,7 @@ import dzve.systems.PowerDeathSystem;
 import dzve.systems.PvPProtectionSystem;
 import dzve.systems.claim.ClaimAlertSystem;
 import dzve.systems.claim.ClaimProtectionSystems;
+import dzve.utils.LogService;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -42,8 +43,10 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
 
     @Override
     protected void setup() {
-        LOGGER.atInfo().log("Setting up plugin " + this.getName());
-        LOGGER.atInfo().log("Plugin mode: " + config.get().getPluginMode());
+        LogService.updateConfig(config.get());
+        LogService.info("PLUGIN", "Setting up plugin " + this.getName());
+        LogService.info("PLUGIN", "Plugin mode: " + config.get().getPluginMode());
+
         GroupService.initialize(config.get());
         groupService = GroupService.getInstance();
         baseGroupCommand = new BaseGroupCommand(config.get());
@@ -77,25 +80,26 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
         if (groupService != null) {
             groupService.shutdown();
         }
-        LOGGER.atInfo().log("Shutdown up plugin " + this.getName());
+        LogService.info("PLUGIN", "Shutdown up plugin " + this.getName());
     }
 
     public void saveConfig() {
         try {
             config.save();
-            LOGGER.atInfo().log("Configuration saved successfully");
+            LogService.info("CONFIG", "Configuration saved successfully");
         } catch (Exception e) {
-            LOGGER.atSevere().log("Failed to save configuration: " + e.getMessage());
+            LogService.error("CONFIG", "Failed to save configuration", e);
         }
     }
 
     public void loadConfig() {
         try {
             config.load();
-            LOGGER.atInfo().log("Configuration load successfully");
+            LogService.updateConfig(config.get());
+            LogService.info("CONFIG", "Configuration loaded successfully");
             saveConfig();
         } catch (Exception e) {
-            LOGGER.atSevere().log("Failed to load configuration: " + e.getMessage());
+            LogService.error("CONFIG", "Failed to load configuration", e);
         }
     }
 }

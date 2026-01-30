@@ -14,6 +14,7 @@ import dzve.config.BetterGroupSystemPluginConfig;
 import dzve.model.DiplomacyStatus;
 import dzve.model.Group;
 import dzve.service.group.GroupService;
+import dzve.utils.LogService;
 import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
 
 import java.awt.*;
@@ -42,10 +43,14 @@ public class PvPProtectionSystem extends DamageEventSystem {
                         if (victimGroup != null && attackerGroup != null) {
                             if (victimGroup.getId().equals(attackerGroup.getId())) {
                                 damage.setCancelled(true);
+                                LogService.debug("PVP", "Cancelled PvP", "attacker", attacker.getUsername(), "victim",
+                                        victim.getUsername(), "reason", "SAME_GROUP");
                                 attacker.sendMessage(
                                         Message.raw("You cannot hurt a member of your own group.").color(Color.YELLOW));
                             } else if (victimGroup.getDiplomacyStatus(attackerGroup.getId()) == DiplomacyStatus.ALLY) {
                                 damage.setCancelled(true);
+                                LogService.debug("PVP", "Cancelled PvP", "attacker", attacker.getUsername(), "victim",
+                                        victim.getUsername(), "reason", "ALLY");
                                 attacker.sendMessage(
                                         Message.raw("You cannot hurt an allied group member.").color(Color.YELLOW));
                             }

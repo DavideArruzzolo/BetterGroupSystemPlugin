@@ -15,6 +15,7 @@ import dzve.model.Faction;
 import dzve.model.Group;
 import dzve.service.NotificationService;
 import dzve.service.group.GroupService;
+import dzve.utils.LogService;
 import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
 
 import java.util.UUID;
@@ -64,6 +65,8 @@ public class ClaimProtectionSystems {
 
         notificationService.sendNotification(player.getUuid(), "This territory is protected by " + group.getName(),
                 Danger);
+        LogService.debug("CLAIM", "Blocked interaction", "player", player.getUsername(), "group", group.getName(),
+                "pos", pos.toString());
         return true;
     }
 

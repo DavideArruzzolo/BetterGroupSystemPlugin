@@ -6,8 +6,6 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 @EqualsAndHashCode(callSuper = true)
@@ -21,10 +19,6 @@ public class Faction extends Group {
     @Builder.Default
     @JsonProperty("totalPower")
     private double totalPower = 0.0;
-
-    @Builder.Default
-    @JsonProperty("playerPower")
-    private Map<UUID, Double> playerPower = new HashMap<>();
 
     @Builder.Default
     @JsonProperty("kills")
@@ -54,10 +48,11 @@ public class Faction extends Group {
     @Override
     public void addMember(PlayerRef player, UUID roleId) {
         super.addMember(player, roleId);
-        if (playerPower == null) {
-            playerPower = new HashMap<>();
+        // Initialize power
+        GroupMember member = getMember(player.getUuid());
+        if (member != null) {
+            member.setPower(dzve.service.group.GroupService.getConfig().getPlayerInitialPower());
         }
-        playerPower.put(player.getUuid(), dzve.service.group.GroupService.getConfig().getPlayerInitialPower());
         recalculateTotalPower();
     }
 
@@ -65,42 +60,36 @@ public class Faction extends Group {
     public boolean removeMember(UUID playerId) {
         boolean removed = super.removeMember(playerId);
         if (removed) {
-            if (playerPower != null) {
-                playerPower.remove(playerId);
-                recalculateTotalPower();
-            }
+            recalculateTotalPower();
         }
         return removed;
     }
 
     public double getPlayerPower(UUID playerId) {
-        return playerPower.getOrDefault(playerId, 0.0);
+        GroupMember member = getMember(playerId);
+        return member != null ? member.getPower() : 0.0;
     }
 
     public void addPlayerPower(UUID playerId, double amount) {
-        if (isMember(playerId)) {
-            double currentPower = playerPower.getOrDefault(playerId, 0.0);
-            playerPower.put(playerId, currentPower + amount);
+        GroupMember member = getMember(playerId);
+        if (member != null) {
+            member.setPower(member.getPower() + amount);
             recalculateTotalPower();
         }
     }
 
     public void removePlayerPower(UUID playerId, double amount) {
-        if (isMember(playerId)) {
-            double currentPower = playerPower.getOrDefault(playerId, 0.0);
-            playerPower.put(playerId, currentPower - amount);
+        GroupMember member = getMember(playerId);
+        if (member != null) {
+            member.setPower(member.getPower() - amount);
             recalculateTotalPower();
         }
     }
 
     private void recalculateTotalPower() {
-        if (playerPower == null) {
-            this.totalPower = 0.0;
-        } else {
-            this.totalPower = playerPower.values().stream()
-                    .mapToDouble(Double::doubleValue)
-                    .sum();
-        }
+        this.totalPower = getMembers().stream()
+                .mapToDouble(GroupMember::getPower)
+                .sum();
         updateRaidableStatus();
     }
 
@@ -133,7 +122,7 @@ public class Faction extends Group {
         Faction copy = new Faction();
         super.copyTo(copy);
         copy.setTotalPower(this.totalPower);
-        copy.setPlayerPower(new HashMap<>(this.playerPower));
+        // copy.setPlayerPower(new HashMap<>(this.playerPower)); // Redundant
         copy.setKills(this.kills);
         copy.setDeaths(this.deaths);
         copy.setRaidable(this.raidable);

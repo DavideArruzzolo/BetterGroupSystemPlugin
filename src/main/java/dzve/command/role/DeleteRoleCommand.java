@@ -19,12 +19,13 @@ public class DeleteRoleCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> name = withRequiredArg("name", "Role name", ArgTypes.STRING);
 
     public DeleteRoleCommand(GroupService groupService) {
-        super("removeRole", "Delete a custom role");
+        super("deleteRole", "Delete a custom role");
         this.groupService = groupService;
     }
 
     @Override
-    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
+                           @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
         groupService.deleteRole(player, name.get(ctx));
     }
 }

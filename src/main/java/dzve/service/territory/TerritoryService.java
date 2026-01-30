@@ -18,6 +18,7 @@ import dzve.model.*;
 import dzve.service.NotificationService;
 import dzve.service.group.GroupService;
 import dzve.utils.ChatFormatter;
+import dzve.utils.LogService;
 
 import java.awt.*;
 import java.util.*;
@@ -60,6 +61,29 @@ public class TerritoryService {
 
     public void removeChunkOwner(String world, int x, int z) {
         chunkOwnerCache.remove(new ChunkKey(world, x, z));
+    }
+
+    public void loadClaims(Map<String, UUID> claims) {
+        chunkOwnerCache.clear();
+        claims.forEach((key, groupId) -> {
+            String[] parts = key.split(":"); // Expected format "world:x:z"
+            if (parts.length == 3) {
+                try {
+                    String world = parts[0];
+                    int x = Integer.parseInt(parts[1]);
+                    int z = Integer.parseInt(parts[2]);
+                    chunkOwnerCache.put(new ChunkKey(world, x, z), groupId);
+                } catch (NumberFormatException e) {
+                    // ignore invalid keys
+                }
+            }
+        });
+    }
+
+    public void syncClaims(Map<String, UUID> claims) {
+        // Differential update or full reload?
+        // Full reload safer for sync job
+        loadClaims(claims);
     }
 
     public Group getGroupByChunk(String worldName, int chunkX, int chunkZ) {
@@ -118,7 +142,10 @@ public class TerritoryService {
 
         chunkInfo.group.addClaim(new GroupClaimedChunk(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
         chunkOwnerCache.put(new ChunkKey(chunkInfo.world, chunkInfo.cx, chunkInfo.cz), chunkInfo.group.getId());
-        groupService.saveGroups();
+
+        // Persist
+        groupService.persistAddClaim(chunkInfo.group.getId(), chunkInfo.world, chunkInfo.cx, chunkInfo.cz);
+
         groupService.notify(sender, "Land claimed!", false);
     }
 
@@ -130,14 +157,23 @@ public class TerritoryService {
         newOwner.addClaim(new GroupClaimedChunk(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
         chunkOwnerCache.put(new ChunkKey(chunkInfo.world, chunkInfo.cx, chunkInfo.cz), newOwner.getId());
 
-        groupService.saveGroups();
+        // Persist removal and addition
+        groupService.persistRemoveClaim(chunkInfo.world, chunkInfo.cx, chunkInfo.cz); // Remove from old (by coords) -
+        // actually removeClaim on Dao
+        // handles this
+        // Actually, for Raids, we remove from old group in DB and add to new.
+        // GroupDao.removeClaim deletes based on coords, so it removes whoever owned it.
+        groupService.persistRemoveClaim(chunkInfo.world, chunkInfo.cx, chunkInfo.cz);
+        groupService.persistAddClaim(newOwner.getId(), chunkInfo.world, chunkInfo.cx, chunkInfo.cz); // Add new owner
+
+        // groupService.saveGroups();
 
         if (raidableFaction instanceof Faction faction) {
             faction.updateRaidableStatus();
         }
 
         String conversionMessage = String.format(
-                "§c[RAID] §f%s §chas conquered chunk (%d, %d) from raidable faction §f%s§c!",
+                "[RAID] %s has conquered chunk (%d, %d) from raidable faction %s!",
                 newOwner.getName(),
                 chunkInfo.cx,
                 chunkInfo.cz,
@@ -192,14 +228,14 @@ public class TerritoryService {
             String allyMessage;
             if (isAttacker) {
                 allyMessage = String.format(
-                        "§a[ALLY RAID] §fYour ally §a%s §fhas successfully raided §c%s §fat chunk (%d, %d)!",
+                        "[ALLY RAID] Your ally %s has successfully raided %s at chunk (%d, %d)!",
                         faction.getName(),
                         otherFaction.getName(),
                         chunkInfo.cx,
                         chunkInfo.cz);
             } else {
                 allyMessage = String.format(
-                        "§c[ALLY RAID] §fYour ally §c%s §fhas been raided by §a%s §fat chunk (%d, %d)!",
+                        "[ALLY RAID] Your ally %s has been raided by %s at chunk (%d, %d)!",
                         faction.getName(),
                         otherFaction.getName(),
                         chunkInfo.cx,
@@ -240,7 +276,9 @@ public class TerritoryService {
 
         chunkInfo.group.removeClaim(chunkInfo.cx, chunkInfo.cz, world.getName());
         chunkOwnerCache.remove(new ChunkKey(world.getName(), chunkInfo.cx, chunkInfo.cz));
-        groupService.saveGroups();
+
+        groupService.persistRemoveClaim(world.getName(), chunkInfo.cx, chunkInfo.cz);
+
         groupService.notify(sender, "Land unclaimed.", false);
     }
 
@@ -267,10 +305,15 @@ public class TerritoryService {
             return;
         }
 
-        group.addHome(new GroupHome(name, world.getName(), sender.getTransform().getPosition().getX(),
+        GroupHome newHome = new GroupHome(name, world.getName(), sender.getTransform().getPosition().getX(),
                 sender.getTransform().getPosition().getY(), sender.getTransform().getPosition().getZ(),
-                sender.getTransform().getRotation().getYaw(), sender.getTransform().getRotation().getPitch()));
-        groupService.saveGroups();
+                sender.getTransform().getRotation().getYaw(), sender.getTransform().getRotation().getPitch());
+        group.addHome(newHome);
+        LogService.info("TERRITORY", "Set home", "player", sender.getUsername(), "home", name, "world",
+                world.getName());
+
+        groupService.persistSaveHome(group.getId(), newHome);
+
         groupService.notify(sender, "Home set successfully.", false);
     }
 
@@ -380,7 +423,7 @@ public class TerritoryService {
             groupService.notify(sender, "Home not found.");
             return;
         }
-        groupService.saveGroups();
+        groupService.persistDeleteHome(group.getId(), homeName);
         groupService.notify(sender, "Home " + homeName + " deleted.", false);
     }
 
@@ -402,7 +445,8 @@ public class TerritoryService {
             member.setDefaultHome(home.getId());
             groupService.notify(sender, "Home " + homeName + " is now your default.", false);
         }
-        groupService.saveGroups();
+
+        groupService.persistUpdateMember(group.getId(), member);
     }
 
     public void showClaimMap(PlayerRef player, World world) {

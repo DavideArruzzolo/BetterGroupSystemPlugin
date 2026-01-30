@@ -26,14 +26,14 @@ public class MapUtils {
 
             if (currentGroup.isMember(otherPlayerId)) {
                 // TODO: Imposta il colore per i membri del gruppo (se l'API lo supporta)
-                return false;
+                return true;
             }
 
             Group otherGroup = service.getPlayerGroup(otherPlayerId);
             if (otherGroup != null) {
                 DiplomacyStatus status = currentGroup.getDiplomacyStatus(otherGroup.getId());
                 // TODO: Imposta il colore per gli alleati (se l'API lo supporta)
-                return status != DiplomacyStatus.ALLY;
+                return true;
             }
 
             return true;
