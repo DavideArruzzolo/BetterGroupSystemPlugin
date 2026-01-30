@@ -353,7 +353,7 @@ public class GroupService {
     }
 
     public void teleportHome(PlayerRef sender, String name, Store<EntityStore> store, Ref<EntityStore> ref,
-                             World world) {
+            World world) {
         territoryService.teleportHome(sender, name, store, ref, world);
     }
 
@@ -431,8 +431,8 @@ public class GroupService {
                 .append("Members: ")
                 .append(group.getMembers().size() + " / "
                         + (group.getType().equals(FACTION) ? getConfig().getMaxSize()
-                        : getConfig().getMaxSize()
-                        + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel())
+                                : getConfig().getMaxSize()
+                                        + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel())
                         + "\n")
                 .withBold()
                 .append("Claims: ")
@@ -599,6 +599,20 @@ public class GroupService {
         return groups.get(id);
     }
 
+    /**
+     * Remove a group from storage and caches. Used by admin commands.
+     */
+    public void removeGroup(Group group) {
+        namesGroups.remove(group.getName().toLowerCase());
+        tagsGroups.remove(group.getTag().toLowerCase());
+        group.getMembers().forEach(m -> {
+            playerGroupMap.remove(m.getPlayerId());
+            clearPlayerMapFilter(m.getPlayerId());
+        });
+        territoryService.uncacheGroupClaims(group);
+        groups.remove(group.getId());
+    }
+
     public void updatePlayerGroupMap(UUID playerId, UUID groupId) {
         playerGroupMap.put(playerId, groupId);
     }
@@ -612,6 +626,37 @@ public class GroupService {
         UUID groupId = playerGroupMap.get(playerUuid);
         if (groupId != null) {
             return groups.get(groupId);
+        }
+        return null;
+    }
+
+    /**
+     * Alias for getPlayerGroup for clarity.
+     */
+    @Nullable
+    public Group getGroupByPlayerId(UUID playerId) {
+        return getPlayerGroup(playerId);
+    }
+
+    /**
+     * Find a player's UUID by their username.
+     * Searches online players first, then group members.
+     */
+    @Nullable
+    public UUID findPlayerUuidByName(String playerName) {
+        // Check online players first
+        for (PlayerRef player : Universe.get().getPlayers()) {
+            if (player.getUsername().equalsIgnoreCase(playerName)) {
+                return player.getUuid();
+            }
+        }
+        // Check stored group members
+        for (Group group : groups.values()) {
+            for (GroupMember member : group.getMembers()) {
+                if (member.getPlayerName().equalsIgnoreCase(playerName)) {
+                    return member.getPlayerId();
+                }
+            }
         }
         return null;
     }
@@ -633,7 +678,7 @@ public class GroupService {
     }
 
     private boolean validateIdentifier(PlayerRef player, String val, int min, int max, Set<String> cache,
-                                       String field) {
+            String field) {
         if (val.length() < min || val.length() > max) {
             notify(player, field + " length invalid.");
             return false;

@@ -6,16 +6,24 @@ import dzve.model.DiplomacyStatus;
 import dzve.model.Group;
 import dzve.model.GroupMember;
 import dzve.model.Permission;
+import dzve.service.NotificationService;
 import dzve.service.group.GroupService;
 import dzve.utils.ChatFormatter;
 
 import java.awt.*;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Success;
+import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Warning;
 
 public class DiplomacyService {
 
     private final GroupService groupService;
+
+    // Map of target group UUID -> Set of requesting group UUIDs
+    private final Map<UUID, Set<UUID>> allyRequests = new ConcurrentHashMap<>();
 
     public DiplomacyService(GroupService groupService) {
         this.groupService = groupService;
@@ -27,7 +35,6 @@ public class DiplomacyService {
             return;
 
         if (!groupService.hasPerm(group, sender, Permission.CAN_MANAGE_DIPLOMACY)) {
-
             return;
         }
 
@@ -43,13 +50,177 @@ public class DiplomacyService {
         }
 
         if (status == DiplomacyStatus.ALLY) {
-            groupService.notify(sender, "Alliance request sent (Not implemented fully).", false);
-
+            // Send ally request instead of setting directly
+            sendAllyRequest(sender, group, target);
         } else {
-            group.setDiplomacyStatus(target.getId(), status);
+            // For NEUTRAL or ENEMY, check if currently allied and remove both sides
+            if (group.getDiplomacyStatus(target.getId()) == DiplomacyStatus.ALLY) {
+                // Breaking alliance - remove from both sides
+                group.setDiplomacyStatus(target.getId(), status);
+                target.setDiplomacyStatus(group.getId(), DiplomacyStatus.NEUTRAL);
+
+                // Notify target group
+                NotificationService.getInstance().broadcastGroup(
+                        target.getMembers().stream().map(GroupMember::getPlayerId).toList(),
+                        group.getName() + " has broken the alliance with your group.",
+                        Warning);
+            } else {
+                group.setDiplomacyStatus(target.getId(), status);
+            }
             groupService.saveGroups();
             groupService.notify(sender, "Diplomacy with " + target.getName() + " set to " + status, false);
         }
+    }
+
+    /**
+     * Send an alliance request to another group.
+     */
+    private void sendAllyRequest(PlayerRef sender, Group from, Group to) {
+        // Check if already allied
+        if (from.getDiplomacyStatus(to.getId()) == DiplomacyStatus.ALLY) {
+            groupService.notify(sender, "You are already allied with " + to.getName() + ".");
+            return;
+        }
+
+        // Check if request already pending
+        Set<UUID> pendingRequests = allyRequests.get(to.getId());
+        if (pendingRequests != null && pendingRequests.contains(from.getId())) {
+            groupService.notify(sender, "Alliance request already pending.");
+            return;
+        }
+
+        // Check if the target has already sent us a request (auto-accept)
+        Set<UUID> ourPendingRequests = allyRequests.get(from.getId());
+        if (ourPendingRequests != null && ourPendingRequests.contains(to.getId())) {
+            // They already requested us, so accept automatically
+            establishAlliance(from, to);
+            ourPendingRequests.remove(to.getId());
+            groupService.notify(sender, "Alliance established with " + to.getName() + "! (They had already requested)",
+                    false);
+            return;
+        }
+
+        // Add request
+        allyRequests.computeIfAbsent(to.getId(), k -> ConcurrentHashMap.newKeySet()).add(from.getId());
+
+        groupService.notify(sender, "Alliance request sent to " + to.getName() + ".", false);
+
+        // Notify target group members
+        NotificationService.getInstance().broadcastGroup(
+                to.getMembers().stream().map(GroupMember::getPlayerId).toList(),
+                from.getName() + " has requested an alliance! Use '/faction acceptally " + from.getName()
+                        + "' to accept.",
+                Success);
+    }
+
+    /**
+     * Accept an alliance request from another group.
+     */
+    public void acceptAllyRequest(PlayerRef sender, String targetGroupName) {
+        Group group = groupService.getGroupOrNotify(sender);
+        if (group == null)
+            return;
+
+        if (!groupService.hasPerm(group, sender, Permission.CAN_MANAGE_DIPLOMACY)) {
+            return;
+        }
+
+        Group requestingGroup = groupService.getGroupByName(targetGroupName);
+        if (requestingGroup == null) {
+            groupService.notify(sender, "Group not found.");
+            return;
+        }
+
+        Set<UUID> pendingRequests = allyRequests.get(group.getId());
+        if (pendingRequests == null || !pendingRequests.contains(requestingGroup.getId())) {
+            groupService.notify(sender, "No alliance request from " + targetGroupName + ".");
+            return;
+        }
+
+        // Establish alliance
+        establishAlliance(group, requestingGroup);
+        pendingRequests.remove(requestingGroup.getId());
+
+        groupService.notify(sender, "Alliance established with " + requestingGroup.getName() + "!", false);
+
+        // Notify the requesting group
+        NotificationService.getInstance().broadcastGroup(
+                requestingGroup.getMembers().stream().map(GroupMember::getPlayerId).toList(),
+                group.getName() + " has accepted your alliance request!",
+                Success);
+    }
+
+    /**
+     * Deny an alliance request from another group.
+     */
+    public void denyAllyRequest(PlayerRef sender, String targetGroupName) {
+        Group group = groupService.getGroupOrNotify(sender);
+        if (group == null)
+            return;
+
+        if (!groupService.hasPerm(group, sender, Permission.CAN_MANAGE_DIPLOMACY)) {
+            return;
+        }
+
+        Group requestingGroup = groupService.getGroupByName(targetGroupName);
+        if (requestingGroup == null) {
+            groupService.notify(sender, "Group not found.");
+            return;
+        }
+
+        Set<UUID> pendingRequests = allyRequests.get(group.getId());
+        if (pendingRequests == null || !pendingRequests.contains(requestingGroup.getId())) {
+            groupService.notify(sender, "No alliance request from " + targetGroupName + ".");
+            return;
+        }
+
+        pendingRequests.remove(requestingGroup.getId());
+        groupService.notify(sender, "Alliance request from " + requestingGroup.getName() + " denied.", false);
+
+        // Notify the requesting group
+        NotificationService.getInstance().broadcastGroup(
+                requestingGroup.getMembers().stream().map(GroupMember::getPlayerId).toList(),
+                group.getName() + " has denied your alliance request.",
+                Warning);
+    }
+
+    /**
+     * List pending alliance requests for the player's group.
+     */
+    public void listAllyRequests(PlayerRef sender) {
+        Group group = groupService.getGroupOrNotify(sender);
+        if (group == null)
+            return;
+
+        Set<UUID> pendingRequests = allyRequests.get(group.getId());
+
+        ChatFormatter.StyledText msg = ChatFormatter.of("=== Pending Alliance Requests ===\n\n")
+                .withColor(Color.YELLOW).withBold();
+
+        if (pendingRequests == null || pendingRequests.isEmpty()) {
+            msg = msg.append("No pending alliance requests.").withColor(Color.GRAY);
+        } else {
+            for (UUID requestingGroupId : pendingRequests) {
+                Group requestingGroup = groupService.getGroup(requestingGroupId);
+                if (requestingGroup != null) {
+                    msg = msg.append("  ● ").withColor(Color.GREEN)
+                            .append(requestingGroup.getName()).withColor(Color.GREEN)
+                            .append(" (" + requestingGroup.getTag() + ")\n").withColor(Color.GRAY);
+                }
+            }
+            msg = msg.append("\nUse '/faction acceptally <name>' or '/faction denyally <name>'").withColor(Color.GRAY);
+        }
+
+        sender.sendMessage(msg.toMessage());
+    }
+
+    /**
+     * Establish a bidirectional alliance between two groups.
+     */
+    private void establishAlliance(Group group1, Group group2) {
+        group1.setDiplomacyStatus(group2.getId(), DiplomacyStatus.ALLY);
+        group2.setDiplomacyStatus(group1.getId(), DiplomacyStatus.ALLY);
+        groupService.saveGroups();
     }
 
     public void listDiplomacy(PlayerRef sender) {
@@ -59,7 +230,7 @@ public class DiplomacyService {
 
         final ChatFormatter.StyledText[] msg = {
                 ChatFormatter.of("=== Diplomatic Relations for " + group.getName() + " ===\n\n")
-                        .withColor(Color.YELLOW).withBold()};
+                        .withColor(Color.YELLOW).withBold() };
 
         if (group.getDiplomaticRelations().isEmpty()) {
             msg[0] = msg[0].append("No diplomatic relations set.").withColor(Color.GRAY);

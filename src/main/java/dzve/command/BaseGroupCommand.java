@@ -9,8 +9,12 @@ import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayer
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import dzve.command.admin.AdminCommand;
 import dzve.command.diplomacy.DiplomacyCommand;
 import dzve.command.diplomacy.ListDiplomacyCommand;
+import dzve.command.diplomacy.AcceptAllyCommand;
+import dzve.command.diplomacy.DenyAllyCommand;
+import dzve.command.diplomacy.ListAllyRequestsCommand;
 import dzve.command.economy.DepositCommand;
 import dzve.command.economy.GetBalanceCommand;
 import dzve.command.economy.GetPowerCommand;
@@ -20,6 +24,8 @@ import dzve.command.member.*;
 import dzve.command.role.*;
 import dzve.command.territory.*;
 import dzve.config.BetterGroupSystemPluginConfig;
+import dzve.service.admin.AdminService;
+import dzve.service.NotificationService;
 import dzve.service.group.GroupService;
 import dzve.utils.ChatFormatter;
 
@@ -32,6 +38,8 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
         setPermissionGroup(GameMode.Adventure);
 
         GroupService groupService = GroupService.getInstance();
+        AdminService adminService = new AdminService(groupService, NotificationService.getInstance());
+
         addSubCommand(new CreateGroupCommand(groupService));
         addSubCommand(new UpdateGroupCommand(groupService));
         addSubCommand(new DisbandGroupCommand(groupService));
@@ -69,11 +77,19 @@ public class BaseGroupCommand extends AbstractPlayerCommand {
         addSubCommand(new ListDiplomacyCommand(groupService));
         addSubCommand(new ListInvitationsCommand(groupService));
         addSubCommand(new ListMembersCommand(groupService));
+
+        // Admin commands
+        addSubCommand(new AdminCommand(groupService, adminService));
+
+        // Ally request commands
+        addSubCommand(new AcceptAllyCommand(groupService));
+        addSubCommand(new DenyAllyCommand(groupService));
+        addSubCommand(new ListAllyRequestsCommand(groupService));
     }
 
     @Override
     protected void execute(@Nonnull CommandContext commandContext, @Nonnull Store<EntityStore> store,
-                           @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef playerRef, @Nonnull World world) {
+            @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef playerRef, @Nonnull World world) {
         Message message = ChatFormatter.of(BetterGroupSystemPluginConfig.MOD_NAME + " Available commands:").toMessage();
         playerRef.sendMessage(message);
         getSubCommands().forEach((name, cmd) -> playerRef
