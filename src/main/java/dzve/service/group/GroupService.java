@@ -27,6 +27,7 @@ import java.util.*;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Danger;
 import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Success;
@@ -38,7 +39,7 @@ public class GroupService {
     private static final NotificationService notificationService = NotificationService.getInstance();
     private static final Pattern NAME_PATTERN = Pattern.compile("^[\\p{L}\\p{N}_]+$");
     private static final Pattern HEX_PATTERN = Pattern.compile("^#[0-9a-fA-F]{6}$");
-    // private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
+
     private static GroupService instance;
     private static BetterGroupSystemPluginConfig config = null;
     private final dzve.database.DatabaseManager dbManager;
@@ -82,8 +83,6 @@ public class GroupService {
             LogService.error("GROUP_SERVICE", "Skipping group loading due to database connection failure.", null);
         }
 
-        // Start Sync Job
-        // startSyncJob();
     }
 
     public static BetterGroupSystemPluginConfig getConfig() {
@@ -155,16 +154,6 @@ public class GroupService {
             LogService.info("GROUP_SERVICE", "Loaded " + groups.size() + " groups from database.");
         }
 
-        // Load claims into territory service (if not already handled by cacheGroupData
-        // which iterates groups)
-        // Since loadAllGroups loads claims into the memory objects (TODO: verify this),
-        // OR we load claims separately.
-        // My GroupDao.loadAllGroups does NOT currently populate the `claims` Set in
-        // Group.
-        // It's cleaner if TerritoryService manages its own cache or we populate
-        // Group.claims.
-        // Let's populate the TerritoryService cache directly from Dao.
-
         Map<String, UUID> loadedClaims = groupDao.loadAllClaims();
         territoryService.loadClaims(loadedClaims);
     }
@@ -193,9 +182,8 @@ public class GroupService {
         territoryService.cacheGroupClaims(group);
     }
 
-    // Deprecated: No longer used, data is saved granularly
     public void saveGroups() {
-        // No-op or trigger a full save if absolutely needed (expensive)
+
     }
 
     public void invitePlayer(PlayerRef sender, PlayerRef target) {
@@ -237,8 +225,7 @@ public class GroupService {
         groups.put(group.getId(), group);
         cacheGroupData(group);
 
-        // Database persist
-        executor.submit(() -> groupDao.createGroup(group));
+        submitTask(() -> groupDao.createGroup(group));
 
         updateGroupMaps(group);
 
@@ -252,6 +239,18 @@ public class GroupService {
 
         updateGroupMaps(group);
 
+        Set<UUID> membersToUpdate = group.getMembers().stream().map(GroupMember::getPlayerId)
+                .collect(Collectors.toSet());
+
+        for (Map.Entry<UUID, DiplomacyStatus> entry : group.getDiplomaticRelations().entrySet()) {
+            if (entry.getValue() == DiplomacyStatus.ALLY) {
+                Group allyGroup = groups.get(entry.getKey());
+                if (allyGroup != null) {
+                    allyGroup.getMembers().forEach(m -> membersToUpdate.add(m.getPlayerId()));
+                }
+            }
+        }
+
         namesGroups.remove(group.getName().toLowerCase());
         tagsGroups.remove(group.getTag().toLowerCase());
         group.getMembers().forEach(m -> {
@@ -264,10 +263,11 @@ public class GroupService {
 
         groups.remove(group.getId());
 
-        // Database removal
-        executor.submit(() -> groupDao.deleteGroup(group.getId()));
+        submitTask(() -> groupDao.deleteGroup(group.getId()));
 
         notify(player, "Group deleted.", false);
+
+        membersToUpdate.forEach(this::refreshPlayerMap);
     }
 
     public void leaveGroup(PlayerRef player) {
@@ -344,8 +344,7 @@ public class GroupService {
             }
         }
 
-        // Database update
-        executor.submit(() -> groupDao.updateGroup(group));
+        submitTask(() -> groupDao.updateGroup(group));
 
         if ("name".equalsIgnoreCase(type) || "tag".equalsIgnoreCase(type)) {
 
@@ -642,9 +641,6 @@ public class GroupService {
         return groups.get(id);
     }
 
-    /**
-     * Remove a group from storage and caches. Used by admin commands.
-     */
     public void removeGroup(Group group) {
         namesGroups.remove(group.getName().toLowerCase());
         tagsGroups.remove(group.getTag().toLowerCase());
@@ -655,8 +651,7 @@ public class GroupService {
         territoryService.uncacheGroupClaims(group);
         groups.remove(group.getId());
 
-        // Also delete from database
-        executor.submit(() -> groupDao.deleteGroup(group.getId()));
+        submitTask(() -> groupDao.deleteGroup(group.getId()));
     }
 
     public void updatePlayerGroupMap(UUID playerId, UUID groupId) {
@@ -676,27 +671,20 @@ public class GroupService {
         return null;
     }
 
-    /**
-     * Alias for getPlayerGroup for clarity.
-     */
     @Nullable
     public Group getGroupByPlayerId(UUID playerId) {
         return getPlayerGroup(playerId);
     }
 
-    /**
-     * Find a player's UUID by their username.
-     * Searches online players first, then group members.
-     */
     @Nullable
     public UUID findPlayerUuidByName(String playerName) {
-        // Check online players first
+
         for (PlayerRef player : Universe.get().getPlayers()) {
             if (player.getUsername().equalsIgnoreCase(playerName)) {
                 return player.getUuid();
             }
         }
-        // Check stored group members
+
         for (Group group : groups.values()) {
             for (GroupMember member : group.getMembers()) {
                 if (member.getPlayerName().equalsIgnoreCase(playerName)) {
@@ -784,23 +772,48 @@ public class GroupService {
     public void updateGroupMaps(Group group) {
         if (group == null)
             return;
+        updateMapsForGroupChange(group, null);
+    }
 
+    public void updateMapsForGroupChange(Group group, @Nullable UUID affectedPlayerId) {
+        if (group == null)
+            return;
+
+        Set<UUID> playersToUpdate = new HashSet<>();
+
+        if (affectedPlayerId != null) {
+            playersToUpdate.add(affectedPlayerId);
+        }
+
+        group.getMembers().forEach(m -> playersToUpdate.add(m.getPlayerId()));
+
+        for (Map.Entry<UUID, DiplomacyStatus> entry : group.getDiplomaticRelations().entrySet()) {
+            if (entry.getValue() == DiplomacyStatus.ALLY) {
+                Group allyGroup = groups.get(entry.getKey());
+                if (allyGroup != null) {
+                    allyGroup.getMembers().forEach(m -> playersToUpdate.add(m.getPlayerId()));
+                }
+            }
+        }
+
+        playersToUpdate.forEach(this::refreshPlayerMap);
+    }
+
+    public void refreshPlayerMap(UUID playerId) {
         Universe universe = Universe.get();
         if (universe == null)
             return;
 
-        for (GroupMember member : group.getMembers()) {
-            PlayerRef playerRef = universe.getPlayer(member.getPlayerId());
-            if (playerRef != null) {
-                Player player = Objects.requireNonNull(playerRef.getReference()).getStore().getComponent(
-                        playerRef.getReference(),
-                        Player.getComponentType());
-                WorldMapTracker mapTracker = null;
-                if (player != null) {
-                    mapTracker = player.getWorldMapTracker();
-                }
+        PlayerRef playerRef = universe.getPlayer(playerId);
+        if (playerRef != null) {
+            Player player = Objects.requireNonNull(playerRef.getReference()).getStore().getComponent(
+                    playerRef.getReference(),
+                    Player.getComponentType());
+            if (player != null) {
+                WorldMapTracker mapTracker = player.getWorldMapTracker();
                 if (mapTracker != null) {
-                    MapUtils.updateMapFilter(mapTracker, member.getPlayerId(), this);
+                    MapUtils.clearMapFilter(mapTracker, playerId);
+                    MapUtils.updateMapFilter(mapTracker, playerId, this);
                 }
             }
         }
@@ -827,60 +840,62 @@ public class GroupService {
         });
     }
 
-    // Persistence delegates for other services
     public void persistAddClaim(UUID groupId, String world, int x, int z) {
-        executor.submit(() -> groupDao.addClaim(groupId, world, x, z));
+        submitTask(() -> groupDao.addClaim(groupId, world, x, z));
     }
 
     public void persistRemoveClaim(String world, int x, int z) {
-        executor.submit(() -> groupDao.removeClaim(world, x, z));
+        submitTask(() -> groupDao.removeClaim(world, x, z));
     }
 
-    // --- Members ---
     public void persistAddMember(UUID groupId, GroupMember member) {
-        executor.submit(() -> groupDao.addMember(groupId, member));
+        submitTask(() -> groupDao.addMember(groupId, member));
     }
 
     public void persistRemoveMember(UUID groupId, UUID playerId) {
-        executor.submit(() -> groupDao.removeMember(groupId, playerId));
+        submitTask(() -> groupDao.removeMember(groupId, playerId));
     }
 
     public void persistUpdateMember(UUID groupId, GroupMember member) {
-        executor.submit(() -> groupDao.updateMember(groupId, member));
+        submitTask(() -> groupDao.updateMember(groupId, member));
     }
 
-    // --- Roles ---
     public void persistCreateRole(UUID groupId, GroupRole role) {
-        executor.submit(() -> groupDao.createRole(groupId, role));
+        submitTask(() -> groupDao.createRole(groupId, role));
     }
 
     public void persistUpdateRole(UUID groupId, GroupRole role) {
-        executor.submit(() -> groupDao.updateRole(groupId, role));
+        submitTask(() -> groupDao.updateRole(groupId, role));
     }
 
     public void persistDeleteRole(UUID roleId) {
-        executor.submit(() -> groupDao.deleteRole(roleId));
+        submitTask(() -> groupDao.deleteRole(roleId));
     }
 
-    // --- Homes ---
     public void persistSaveHome(UUID groupId, GroupHome home) {
-        executor.submit(() -> groupDao.saveHome(groupId, home));
+        submitTask(() -> groupDao.saveHome(groupId, home));
     }
 
     public void persistDeleteHome(UUID groupId, String homeName) {
-        executor.submit(() -> groupDao.deleteHome(groupId, homeName));
+        submitTask(() -> groupDao.deleteHome(groupId, homeName));
     }
 
-    // --- Diplomacy ---
     public void persistSetDiplomacy(UUID g1, UUID g2, DiplomacyStatus status) {
-        executor.submit(() -> groupDao.setDiplomacy(g1, g2, status));
+        submitTask(() -> groupDao.setDiplomacy(g1, g2, status));
     }
 
     public void persistUpdateGroup(Group group) {
-        executor.submit(() -> groupDao.updateGroup(group));
+        submitTask(() -> groupDao.updateGroup(group));
     }
 
-    // Removing unused legacy record
-    // private record ChunkInfo(Group group, int cx, int cz, String world) {}
+    private void submitTask(Runnable task) {
+        executor.submit(() -> {
+            try {
+                task.run();
+            } catch (Exception e) {
+                LogService.error("GROUP_SERVICE", "Async persistence task failed", e);
+            }
+        });
+    }
 
 }

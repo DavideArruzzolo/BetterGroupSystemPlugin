@@ -13,10 +13,6 @@ import dzve.service.admin.AdminService;
 
 import javax.annotation.Nonnull;
 
-/**
- * Admin command to grant admin permission to a player.
- * Usage: /faction admin grantperm <playerName>
- */
 public class AdminGrantPermCommand extends AbstractPlayerCommand {
 
     private final AdminService adminService;

@@ -7,9 +7,6 @@ import dzve.service.group.GroupService;
 
 import java.util.UUID;
 
-/**
- * Utilità per la gestione della mappa dei giocatori
- */
 public class MapUtils {
 
     public static void updateMapFilter(WorldMapTracker mapTracker, UUID playerId, GroupService service) {
@@ -17,23 +14,25 @@ public class MapUtils {
             UUID otherPlayerId = otherPlayer.getUuid();
             if (otherPlayerId.equals(playerId)) {
                 return false;
+
             }
 
             Group currentGroup = service.getPlayerGroup(playerId);
             if (currentGroup == null) {
+
                 return true;
             }
 
             if (currentGroup.isMember(otherPlayerId)) {
-                // TODO: Imposta il colore per i membri del gruppo (se l'API lo supporta)
-                return true;
+                return false;
             }
 
             Group otherGroup = service.getPlayerGroup(otherPlayerId);
             if (otherGroup != null) {
                 DiplomacyStatus status = currentGroup.getDiplomacyStatus(otherGroup.getId());
-                // TODO: Imposta il colore per gli alleati (se l'API lo supporta)
-                return true;
+                if (status == DiplomacyStatus.ALLY) {
+                    return false;
+                }
             }
 
             return true;
@@ -42,8 +41,8 @@ public class MapUtils {
 
     public static void clearMapFilter(WorldMapTracker mapTracker, UUID playerId) {
         mapTracker.setPlayerMapFilter(otherPlayer -> {
-            UUID otherPlayerId = otherPlayer.getUuid();
-            return !otherPlayerId.equals(playerId);
+
+            return false;
         });
     }
 }

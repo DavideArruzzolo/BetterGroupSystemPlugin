@@ -13,10 +13,6 @@ import dzve.service.admin.AdminService;
 
 import javax.annotation.Nonnull;
 
-/**
- * Admin command to change the leader of a group.
- * Usage: /faction admin setleader <groupName> <playerName>
- */
 public class AdminSetLeaderCommand extends AbstractPlayerCommand {
 
     private final AdminService adminService;

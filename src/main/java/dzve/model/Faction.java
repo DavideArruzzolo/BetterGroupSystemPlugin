@@ -48,7 +48,7 @@ public class Faction extends Group {
     @Override
     public void addMember(PlayerRef player, UUID roleId) {
         super.addMember(player, roleId);
-        // Initialize power
+
         GroupMember member = getMember(player.getUuid());
         if (member != null) {
             member.setPower(dzve.service.group.GroupService.getConfig().getPlayerInitialPower());
@@ -125,7 +125,7 @@ public class Faction extends Group {
         Faction copy = new Faction();
         super.copyTo(copy);
         copy.setTotalPower(this.totalPower);
-        // copy.setPlayerPower(new HashMap<>(this.playerPower)); // Redundant
+
         copy.setKills(this.kills);
         copy.setDeaths(this.deaths);
         copy.setRaidable(this.raidable);

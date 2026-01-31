@@ -10,6 +10,7 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dzve.command.admin.AdminCommand;
+import dzve.command.admin.ReloadCommand;
 import dzve.command.diplomacy.*;
 import dzve.command.economy.DepositCommand;
 import dzve.command.economy.GetBalanceCommand;

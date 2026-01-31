@@ -11,10 +11,6 @@ import dzve.service.group.GroupService;
 
 import javax.annotation.Nonnull;
 
-/**
- * Command to list pending ally requests.
- * Usage: /faction allyrequests
- */
 public class ListAllyRequestsCommand extends AbstractPlayerCommand {
 
     private final GroupService groupService;

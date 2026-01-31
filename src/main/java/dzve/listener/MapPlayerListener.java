@@ -27,6 +27,17 @@ public class MapPlayerListener {
         UUID playerUuid = uuidComponent.getUuid();
         GroupService service = GroupService.getInstance();
 
-        MapUtils.updateMapFilter(mapTracker, playerUuid, service);
+        if (GroupService.getConfig().isHidePlayers()) {
+            MapUtils.updateMapFilter(mapTracker, playerUuid, service);
+        } else {
+            MapUtils.clearMapFilter(mapTracker, playerUuid);
+        }
+
+        com.hypixel.hytale.server.core.universe.PlayerRef playerRef = player.getReference().getStore().getComponent(
+                player.getReference(), com.hypixel.hytale.server.core.universe.PlayerRef.getComponentType());
+        if (playerRef != null) {
+            dzve.utils.LogService.debug("LISTENER", "Updated map filter for player " + playerRef.getUsername()
+                    + " (HidePlayers: " + GroupService.getConfig().isHidePlayers() + ")");
+        }
     }
 }

@@ -13,10 +13,6 @@ import dzve.utils.ChatFormatter;
 
 import javax.annotation.Nonnull;
 
-/**
- * Main admin command that contains subcommands for administrative operations.
- * Usage: /faction admin <subcommand>
- */
 public class AdminCommand extends AbstractPlayerCommand {
 
     private final AdminService adminService;
@@ -24,8 +20,6 @@ public class AdminCommand extends AbstractPlayerCommand {
     public AdminCommand(GroupService groupService, AdminService adminService) {
         super("admin", "Admin commands for group management");
         this.adminService = adminService;
-
-        // Register subcommands
         addSubCommand(new AdminDisbandCommand(adminService));
         addSubCommand(new AdminKickCommand(adminService));
         addSubCommand(new AdminSetLeaderCommand(adminService));

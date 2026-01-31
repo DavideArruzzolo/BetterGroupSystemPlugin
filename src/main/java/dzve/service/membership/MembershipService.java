@@ -84,13 +84,12 @@ public class MembershipService {
         groupService.updatePlayerGroupMap(player.getUuid(), group.getId());
         invites.remove(group.getId());
 
-        // Persist
         GroupMember newMember = group.getMember(player.getUuid());
         groupService.persistAddMember(group.getId(), newMember);
 
         groupService.notify(player, "Joined " + group.getName(), false);
 
-        groupService.updateGroupMaps(group);
+        groupService.updateMapsForGroupChange(group, player.getUuid());
 
         notificationService.broadcastGroup(
                 group.getMembers().stream()
@@ -139,15 +138,16 @@ public class MembershipService {
             groupService.notify(targetPlayer, "You have been kicked from " + group.getName() + ".", true);
         }
 
+        String kickedName = targetPlayer != null ? targetPlayer.getUsername() : "A member";
         notificationService.broadcastGroup(
                 group.getMembers().stream()
                         .map(GroupMember::getPlayerId)
                         .filter(id -> !id.equals(sender.getUuid()) && !id.equals(targetId))
                         .toList(),
-                targetPlayer != null ? targetPlayer.getUsername() : "A member" + " has been kicked from the group!",
+                kickedName + " has been kicked by " + sender.getUsername() + ".",
                 Warning);
 
-        groupService.updateGroupMaps(group);
+        groupService.updateMapsForGroupChange(group, targetId);
     }
 
     public void leaveGroup(PlayerRef player) {
@@ -167,6 +167,7 @@ public class MembershipService {
             groupService.clearPlayerMapFilter(player.getUuid());
 
             groupService.persistRemoveMember(group.getId(), player.getUuid());
+            LogService.info("MEMBERSHIP", "Player " + player.getUsername() + " left group " + group.getName());
 
             groupService.notify(player, "You left the group.", false);
 
@@ -177,7 +178,7 @@ public class MembershipService {
                     player.getUsername() + " has left the group!",
                     Warning);
 
-            groupService.updateGroupMaps(group);
+            groupService.updateMapsForGroupChange(group, player.getUuid());
         }
     }
 
@@ -335,6 +336,11 @@ public class MembershipService {
         groupService.persistUpdateMember(group.getId(), group.getMember(targetId));
 
         groupService.notify(sender, "Role updated successfully.", false);
+
+        PlayerRef targetPlayer = Universe.get().getPlayer(targetId);
+        if (targetPlayer != null) {
+            groupService.notify(targetPlayer, "Your role has been updated to " + role.getName() + ".", false);
+        }
     }
 
     private boolean canModify(Group g, UUID actor, UUID target) {
@@ -367,7 +373,7 @@ public class MembershipService {
         Set<GroupRole> mutable = new HashSet<>(g.getRoles());
         modifier.accept(mutable);
         g.setRoles(mutable);
-        // groupService.saveGroups(); // Handled by caller granularly
+
     }
 
     private Set<Permission> parsePerms(List<String> list) {
@@ -406,6 +412,9 @@ public class MembershipService {
                             .orElse("N/A");
 
                     msg[0] = msg[0].append("Group: ").withBold().append(group.getName()).append("\n")
+                            .append("Use /" + GroupService.getConfig().getAllCommandsPrefix() + " join "
+                                    + group.getName())
+                            .withColor(groupColor).append("\n")
                             .append("\tTag: ").append(group.getTag()).withColor(groupColor).append("\n")
                             .append("\tMembers: ").append(group.getMembers().size() + " / " +
                                     (group.getType().equals(GroupType.FACTION) ? GroupService.getConfig().getMaxSize()

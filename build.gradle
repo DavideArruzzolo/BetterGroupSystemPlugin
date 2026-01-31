@@ -57,7 +57,6 @@ dependencies {
     implementation(files("$hytaleHome/install/$patchline/package/game/latest/Server/HytaleServer.jar"))
     compileOnly("org.projectlombok:lombok:1.18.42")
 
-    // Dependencies to be bundled into the final JAR
     bundledImplementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
     bundledImplementation("com.fasterxml.jackson.core:jackson-core:2.15.2")
     bundledImplementation("com.fasterxml.jackson.core:jackson-annotations:2.15.2")
@@ -66,13 +65,6 @@ dependencies {
 
     annotationProcessor("org.projectlombok:lombok:1.18.42")
     proguard("com.guardsquare:proguard-base:7.8.2")
-
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.1'
-    testImplementation 'org.projectlombok:lombok:1.18.42'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.42'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testImplementation 'org.mockito:mockito-core:5.10.0'
-    testImplementation 'org.mockito:mockito-junit-jupiter:5.10.0'
 }
 
 test {
@@ -148,11 +140,9 @@ tasks.register('proguard', JavaExec) {
 
 
     doFirst {
-        // Resolve bundled dependencies
         def bundledFiles = configurations.bundledImplementation.files
         def bundledJars = bundledFiles.collect { it.path }.join(File.pathSeparator)
 
-        // Calculate library jars (runtime classpath minus bundled jars)
         def libraryJars = configurations.runtimeClasspath.files
             .minus(bundledFiles)
             .collect { it.path }
@@ -185,4 +175,36 @@ tasks.register('copyObfuscatedJarToHytale', Copy) {
 
 tasks.build {
     finalizedBy 'proguard', 'copyObfuscatedJarToHytale'
+}
+
+tasks.register('runServer', JavaExec) {
+    group = 'hytale'
+    description = 'Runs the Hytale Server with the correct Java version'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.hypixel.hytale.Main'
+    workingDir = serverRunDir
+
+    javaLauncher = java.toolchain.getLauncherFor(java.toolchain.languageVersion)
+
+    doFirst {
+        def srcDir = sourceSets.main.java.srcDirs.first().parentFile.absolutePath
+        def argsList = [
+            '--allow-op',
+            '--disable-sentry',
+            "--assets=${hytaleHome}/install/$patchline/package/game/latest/Assets.zip"
+        ]
+
+        def modPaths = []
+        if (includes_pack.toBoolean()) {
+            modPaths << srcDir
+        }
+        if (load_user_mods.toBoolean()) {
+            modPaths << "${hytaleHome}/UserData/Mods"
+        }
+        if (!modPaths.isEmpty()) {
+            argsList << "--mods=${modPaths.join(',')}"
+        }
+
+        args = argsList
+    }
 }

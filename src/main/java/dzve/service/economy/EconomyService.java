@@ -8,7 +8,6 @@ import dzve.service.group.GroupService;
 import dzve.utils.LogService;
 
 public class EconomyService {
-    // private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
 
     private final GroupService groupService;
 
@@ -34,9 +33,12 @@ public class EconomyService {
         }
 
         group.withdraw(amount, sender.getUuid());
-        LogService.info("ECONOMY", "Player " + sender.getUsername() + " withdrew " + amount + " from personal balance in group " + group.getName());
+        LogService.info("ECONOMY", "Player " + sender.getUsername() + " withdrew " + amount
+                + " from personal balance in group " + group.getName());
 
         groupService.persistUpdateMember(group.getId(), group.getMember(sender.getUuid()));
+        LogService.info("ECONOMY", "Player " + sender.getUsername() + " withdrew " + amount
+                + " from personal balance in group " + group.getName());
 
         groupService.notify(sender, "Withdrawn " + amount + " from your personal balance.", false);
     }
@@ -63,7 +65,7 @@ public class EconomyService {
         }
 
         if (group.withdrawFromGroup(amount, sender.getUuid())) {
-            // Transfer to player balance (Symmetric to depositToGroup)
+
             group.deposit(amount, sender.getUuid());
             LogService.info("ECONOMY", "Player " + sender.getUsername() + " withdrew " + amount + " from group "
                     + group.getName() + " to personal balance");
@@ -97,10 +99,9 @@ public class EconomyService {
         LogService.info("ECONOMY", "Player " + sender.getUsername() + " deposited " + amount
                 + " to personal balance in group " + group.getName());
 
-        // Assuming this affects Member balance inside Group
         groupService.persistUpdateMember(group.getId(), group.getMember(sender.getUuid()));
         if (group instanceof dzve.model.Guild) {
-            groupService.persistUpdateGroup(group); // Guild contributions updated
+            groupService.persistUpdateGroup(group);
         }
 
         groupService.notify(sender, "Deposited " + amount, false);

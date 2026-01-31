@@ -15,10 +15,6 @@ public class GroupDao {
         this.dbManager = dbManager;
     }
 
-    // --- Loading ---
-
-    // --- Loading ---
-
     public Map<UUID, Group> loadAllGroups() {
         Map<UUID, Group> groups = new HashMap<>();
         String sqlGroups = "SELECT * FROM groups";
@@ -39,8 +35,6 @@ public class GroupDao {
 
                     Group group;
 
-                    // Construct placeholder objects to populate
-                    // Note: We are bypassing the constructor that requires PlayerRef
                     if ("GUILD".equals(typeStr)) {
                         group = Guild.builder()
                                 .id(id)
@@ -71,7 +65,6 @@ public class GroupDao {
                                 .build();
                     }
 
-                    // Force ID
                     try {
                         java.lang.reflect.Field idField = dzve.model.Group.class.getDeclaredField("id");
                         idField.setAccessible(true);
@@ -80,8 +73,6 @@ public class GroupDao {
                         LOGGER.atSevere().log("Could not force set Group ID");
                     }
 
-                    // Force LeaderID (constructor might have failed if player null, or set it to
-                    // null)
                     group.setLeaderId(leaderId);
 
                     group.setBankBalance(rs.getDouble("bank_balance"));
@@ -103,7 +94,7 @@ public class GroupDao {
         loadRoles(groups);
         loadHomes(groups);
         loadDiplomacy(groups);
-        loadClaims(groups); // Populate Group.claims
+        loadClaims(groups);
 
         return groups;
     }
@@ -131,6 +122,9 @@ public class GroupDao {
     }
 
     private void loadRoles(Map<UUID, Group> groups) {
+
+        groups.values().forEach(g -> g.getRoles().clear());
+
         String sql = "SELECT * FROM roles";
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql);
@@ -149,7 +143,7 @@ public class GroupDao {
 
                 Set<Permission> perms = new HashSet<>();
                 if (permsJson != null && !permsJson.isEmpty()) {
-                    // Simple parsing for comma-separated list [A, B, C]
+
                     String clean = permsJson.replace("[", "").replace("]", "").replace("\"", "");
                     for (String s : clean.split(",")) {
                         if (s.trim().isEmpty())
@@ -157,13 +151,13 @@ public class GroupDao {
                         try {
                             perms.add(Permission.valueOf(s.trim()));
                         } catch (IllegalArgumentException e) {
-                            // ignore invalid perm
+
                         }
                     }
                 }
 
                 GroupRole role = new GroupRole(name, name, priority, false, perms);
-                // Need to force set ID
+
                 try {
                     java.lang.reflect.Field f = GroupRole.class.getDeclaredField("id");
                     f.setAccessible(true);
@@ -217,7 +211,6 @@ public class GroupDao {
                 String statusStr = rs.getString("status");
 
                 Group group1 = groups.get(g1);
-                // Group 2 might not be loaded if we are sharded, but here we load all.
 
                 if (group1 != null) {
                     group1.getDiplomaticRelations().put(g2, DiplomacyStatus.valueOf(statusStr));
@@ -267,7 +260,6 @@ public class GroupDao {
                     member.setContribution(contribution);
                     member.setBankBalance(bankBalance);
 
-                    // Add to group's member set directly
                     group.getMembers().add(member);
 
                 } catch (Exception e) {
@@ -301,8 +293,6 @@ public class GroupDao {
         return claims;
     }
 
-    // --- Groups ---
-
     public void createGroup(Group group) {
         String sql = "INSERT INTO groups (id, name, tag, description, color, created_at, leader_id, type, level, money_to_next_level, bank_balance, kills, deaths, homes_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = dbManager.getConnection();
@@ -334,14 +324,12 @@ public class GroupDao {
                 stmt.setInt(12, 0);
                 stmt.setInt(13, 0);
             }
-            stmt.setString(14, "[]"); // Empty homes initially
+            stmt.setString(14, "[]");
 
             stmt.executeUpdate();
 
-            // Add leader as member
             addMember(group.getId(), group.getMember(group.getLeaderId()));
 
-            // Persist default roles
             for (GroupRole role : group.getRoles()) {
                 createRole(group.getId(), role);
             }
@@ -396,8 +384,6 @@ public class GroupDao {
         }
     }
 
-    // --- Members ---
-
     public void addMember(UUID groupId, GroupMember member) {
         String sql = "INSERT INTO members (player_id, group_id, player_name, role_id, joined_at, last_online, default_home_id, player_power, contribution, bank_balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = dbManager.getConnection();
@@ -448,8 +434,6 @@ public class GroupDao {
         }
     }
 
-    // --- Claims ---
-
     public void addClaim(UUID groupId, String world, int x, int z) {
         String sql = "INSERT INTO claims (world_name, chunk_x, chunk_z, group_id, claimed_at) VALUES (?, ?, ?, ?, ?)";
         try (Connection conn = dbManager.getConnection();
@@ -478,8 +462,6 @@ public class GroupDao {
         }
     }
 
-    // --- Roles ---
-
     public void createRole(UUID groupId, GroupRole role) {
         String sql = "INSERT INTO roles (role_id, group_id, name, priority, permissions_json) VALUES (?, ?, ?, ?, ?)";
         try (Connection conn = dbManager.getConnection();
@@ -488,7 +470,7 @@ public class GroupDao {
             stmt.setString(2, groupId.toString());
             stmt.setString(3, role.getName());
             stmt.setInt(4, role.getPriority());
-            stmt.setString(5, role.getPermissions().toString()); // Set.toString() gives [A, B]
+            stmt.setString(5, role.getPermissions().toString());
             stmt.executeUpdate();
         } catch (SQLException e) {
             LOGGER.atSevere().withCause(e).log("Failed to create role " + role.getName());
@@ -520,12 +502,8 @@ public class GroupDao {
         }
     }
 
-    // --- Homes ---
-
     public void saveHome(UUID groupId, GroupHome home) {
-        // Upsert style or just delete and insert (simplest for composite keys
-        // sometimes, but REPLACE INTO is SQLite specific)
-        // Let's use INSERT OR REPLACE
+
         String sql = "INSERT OR REPLACE INTO homes (home_id, group_id, name, world_name, x, y, z, yaw, pitch) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -555,8 +533,6 @@ public class GroupDao {
             LOGGER.atSevere().withCause(e).log("Failed to delete home " + homeName);
         }
     }
-
-    // --- Diplomacy ---
 
     public void setDiplomacy(UUID g1, UUID g2, DiplomacyStatus status) {
         String sql = "INSERT OR REPLACE INTO diplomacy (group_id_1, group_id_2, status) VALUES (?, ?, ?)";

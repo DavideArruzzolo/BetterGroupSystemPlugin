@@ -37,8 +37,8 @@ public class PvPProtectionSystem extends DamageEventSystem {
                     Ref<EntityStore> attackerRef = entitySource.getRef();
                     PlayerRef attacker = store.getComponent(attackerRef, PlayerRef.getComponentType());
                     if (attacker != null) {
-                        Group victimGroup = GroupService.getInstance().getGroupOrNotify(victim);
-                        Group attackerGroup = GroupService.getInstance().getGroupOrNotify(attacker);
+                        Group victimGroup = GroupService.getInstance().getPlayerGroup(victim.getUuid());
+                        Group attackerGroup = GroupService.getInstance().getPlayerGroup(attacker.getUuid());
 
                         if (victimGroup != null && attackerGroup != null) {
                             if (victimGroup.getId().equals(attackerGroup.getId())) {

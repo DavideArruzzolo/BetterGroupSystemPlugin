@@ -66,7 +66,7 @@ public class TerritoryService {
     public void loadClaims(Map<String, UUID> claims) {
         chunkOwnerCache.clear();
         claims.forEach((key, groupId) -> {
-            String[] parts = key.split(":"); // Expected format "world:x:z"
+            String[] parts = key.split(":");
             if (parts.length == 3) {
                 try {
                     String world = parts[0];
@@ -74,15 +74,14 @@ public class TerritoryService {
                     int z = Integer.parseInt(parts[2]);
                     chunkOwnerCache.put(new ChunkKey(world, x, z), groupId);
                 } catch (NumberFormatException e) {
-                    // ignore invalid keys
+
                 }
             }
         });
     }
 
     public void syncClaims(Map<String, UUID> claims) {
-        // Differential update or full reload?
-        // Full reload safer for sync job
+
         loadClaims(claims);
     }
 
@@ -115,7 +114,7 @@ public class TerritoryService {
 
         Group existingOwner = getGroupByChunk(world.getName(), chunkInfo.cx, chunkInfo.cz);
         if (existingOwner != null) {
-            // Guilds cannot take territory from other groups
+
             if (chunkInfo.group instanceof Guild) {
                 groupService.notify(sender, "Guilds cannot claim territory owned by other groups.");
                 return;
@@ -143,7 +142,6 @@ public class TerritoryService {
         chunkInfo.group.addClaim(new GroupClaimedChunk(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
         chunkOwnerCache.put(new ChunkKey(chunkInfo.world, chunkInfo.cx, chunkInfo.cz), chunkInfo.group.getId());
 
-        // Persist
         groupService.persistAddClaim(chunkInfo.group.getId(), chunkInfo.world, chunkInfo.cx, chunkInfo.cz);
 
         groupService.notify(sender, "Land claimed!", false);
@@ -157,16 +155,10 @@ public class TerritoryService {
         newOwner.addClaim(new GroupClaimedChunk(chunkInfo.cx, chunkInfo.cz, chunkInfo.world));
         chunkOwnerCache.put(new ChunkKey(chunkInfo.world, chunkInfo.cx, chunkInfo.cz), newOwner.getId());
 
-        // Persist removal and addition
-        groupService.persistRemoveClaim(chunkInfo.world, chunkInfo.cx, chunkInfo.cz); // Remove from old (by coords) -
-        // actually removeClaim on Dao
-        // handles this
-        // Actually, for Raids, we remove from old group in DB and add to new.
-        // GroupDao.removeClaim deletes based on coords, so it removes whoever owned it.
         groupService.persistRemoveClaim(chunkInfo.world, chunkInfo.cx, chunkInfo.cz);
-        groupService.persistAddClaim(newOwner.getId(), chunkInfo.world, chunkInfo.cx, chunkInfo.cz); // Add new owner
 
-        // groupService.saveGroups();
+        groupService.persistRemoveClaim(chunkInfo.world, chunkInfo.cx, chunkInfo.cz);
+        groupService.persistAddClaim(newOwner.getId(), chunkInfo.world, chunkInfo.cx, chunkInfo.cz);
 
         if (raidableFaction instanceof Faction faction) {
             faction.updateRaidableStatus();
@@ -278,6 +270,8 @@ public class TerritoryService {
         chunkOwnerCache.remove(new ChunkKey(world.getName(), chunkInfo.cx, chunkInfo.cz));
 
         groupService.persistRemoveClaim(world.getName(), chunkInfo.cx, chunkInfo.cz);
+        LogService.info("TERRITORY", "Unclaimed chunk", "player", sender.getUsername(), "chunkX", chunkInfo.cx,
+                "chunkZ", chunkInfo.cz, "world", world.getName());
 
         groupService.notify(sender, "Land unclaimed.", false);
     }
@@ -385,7 +379,8 @@ public class TerritoryService {
             return;
         }
 
-        final ChatFormatter.StyledText[] msg = {ChatFormatter.of("=== Homes for " + group.getName() + " ===\n\n").withBold()};
+        final ChatFormatter.StyledText[] msg = {
+                ChatFormatter.of("=== Homes for " + group.getName() + " ===\n\n").withBold()};
 
         Set<GroupHome> homes = group.getHomes();
         if (homes.isEmpty()) {
@@ -396,7 +391,8 @@ public class TerritoryService {
                     .forEach(home -> {
                         GroupMember member = group.getMember(sender.getUuid());
                         boolean isDefault = member != null && home.getId().equals(member.getDefaultHome());
-                        msg[0] = msg[0].append("- ").append(home.getName()).withBold().append(isDefault ? " (default)\n" : "\n");
+                        msg[0] = msg[0].append("- ").append(home.getName()).withBold()
+                                .append(isDefault ? " (default)\n" : "\n");
                     });
         }
         sender.sendMessage(msg[0].toMessage());

@@ -58,10 +58,9 @@ public class PowerDeathSystem extends DeathSystems.OnDeathSystem {
         victimFaction.removePlayerPower(victimId, powerLoss);
         victimFaction.incrementDeaths();
 
-        // Persist modifications
         GroupService gs = GroupService.getInstance();
-        gs.persistUpdateGroup(victimFaction); // Saves deaths
-        gs.persistUpdateMember(victimFaction.getId(), victimFaction.getMember(victimId)); // Saves power
+        gs.persistUpdateGroup(victimFaction);
+        gs.persistUpdateMember(victimFaction.getId(), victimFaction.getMember(victimId));
 
         notificationService.sendNotification(victimId,
                 "You lost " + powerLoss + " power from death!", Default);
@@ -80,9 +79,8 @@ public class PowerDeathSystem extends DeathSystems.OnDeathSystem {
                     killerFaction.addPlayerPower(killerId, powerGain);
                     killerFaction.incrementKills();
 
-                    // Persist modifications
-                    gs.persistUpdateGroup(killerFaction); // Saves kills
-                    gs.persistUpdateMember(killerFaction.getId(), killerFaction.getMember(killerId)); // Saves power
+                    gs.persistUpdateGroup(killerFaction);
+                    gs.persistUpdateMember(killerFaction.getId(), killerFaction.getMember(killerId));
 
                     notificationService.sendNotification(killerId,
                             "You gained " + powerGain + " power from killing " + playerRef.getUsername() + "!",

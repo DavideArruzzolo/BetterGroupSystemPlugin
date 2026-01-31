@@ -13,10 +13,6 @@ import dzve.service.admin.AdminService;
 
 import javax.annotation.Nonnull;
 
-/**
- * Admin command to revoke admin permission from a player.
- * Usage: /faction admin revokeperm <playerName>
- */
 public class AdminRevokePermCommand extends AbstractPlayerCommand {
 
     private final AdminService adminService;

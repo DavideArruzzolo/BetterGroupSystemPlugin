@@ -16,9 +16,6 @@ import java.util.UUID;
 import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Success;
 import static com.hypixel.hytale.protocol.packets.interface_.NotificationStyle.Warning;
 
-/**
- * Service for admin operations using Hytale's PermissionsModule.
- */
 public class AdminService {
 
     public static final String ADMIN_PERMISSION = "bettergroupsystem.admin";
@@ -31,16 +28,10 @@ public class AdminService {
         this.notificationService = notificationService;
     }
 
-    /**
-     * Check if a player has admin permission using PermissionsModule.
-     */
     public boolean hasAdminPermission(PlayerRef player) {
         return PermissionsModule.get().hasPermission(player.getUuid(), ADMIN_PERMISSION);
     }
 
-    /**
-     * Admin command to forcefully disband a group.
-     */
     public void adminDisband(PlayerRef admin, String groupName) {
         if (!checkAdmin(admin))
             return;
@@ -51,7 +42,6 @@ public class AdminService {
             return;
         }
 
-        // Notify all members before disbanding
         notificationService.broadcastGroup(
                 group.getMembers().stream()
                         .map(GroupMember::getPlayerId)
@@ -59,20 +49,14 @@ public class AdminService {
                 "Your group has been disbanded by an administrator.",
                 Warning);
 
-        // Remove all members from group map
         group.getMembers().forEach(member -> groupService.removePlayerFromGroupMap(member.getPlayerId()));
 
-        // Remove group from storage
         groupService.removeGroup(group);
-        // groupService.saveGroups(); // Handled by removeGroup
 
         groupService.notify(admin, "Group '" + groupName + "' has been disbanded.", false);
         LogService.info("ADMIN", "Admin disbanded group", "admin", admin.getUsername(), "group", groupName);
     }
 
-    /**
-     * Admin command to forcefully kick a member from a group.
-     */
     public void adminKick(PlayerRef admin, String groupName, String targetName) {
         if (!checkAdmin(admin))
             return;
@@ -101,10 +85,8 @@ public class AdminService {
         group.removeMember(targetMember.getPlayerId());
         groupService.removePlayerFromGroupMap(targetMember.getPlayerId());
 
-        // Granular persistence
         groupService.persistRemoveMember(group.getId(), targetMember.getPlayerId());
 
-        // Notify kicked player if online
         Universe.get().getPlayers().stream()
                 .filter(p -> p.getUuid().equals(targetMember.getPlayerId()))
                 .findFirst()
@@ -116,9 +98,6 @@ public class AdminService {
                 groupName);
     }
 
-    /**
-     * Admin command to change the leader of a group.
-     */
     public void adminSetLeader(PlayerRef admin, String groupName, String targetName) {
         if (!checkAdmin(admin))
             return;
@@ -142,16 +121,13 @@ public class AdminService {
         UUID oldLeaderId = group.getLeaderId();
         UUID newLeaderId = targetMember.getPlayerId();
 
-        // Find leader role (highest priority)
         GroupRole leaderRole = group.getRoles().stream()
                 .max(java.util.Comparator.comparingInt(GroupRole::getPriority))
                 .orElseThrow();
 
-        // Assign leader role to new leader
         group.changeMemberRole(newLeaderId, leaderRole.getId());
         group.setLeaderId(newLeaderId);
 
-        // Demote old leader to default role
         GroupRole defaultRole = group.getRoles().stream()
                 .filter(GroupRole::isDefault)
                 .findFirst()
@@ -162,14 +138,12 @@ public class AdminService {
             group.changeMemberRole(oldLeaderId, defaultRole.getId());
         }
 
-        // Granular persistence
-        groupService.persistUpdateGroup(group); // Update leader_id
+        groupService.persistUpdateGroup(group);
         if (oldLeader != null) {
             groupService.persistUpdateMember(group.getId(), oldLeader);
         }
         groupService.persistUpdateMember(group.getId(), group.getMember(newLeaderId));
 
-        // Notify group members
         notificationService.broadcastGroup(
                 group.getMembers().stream()
                         .map(GroupMember::getPlayerId)
@@ -182,9 +156,6 @@ public class AdminService {
                 targetName);
     }
 
-    /**
-     * Admin command to forcefully set diplomacy between two groups.
-     */
     public void adminSetDiplomacy(PlayerRef admin, String group1Name, String group2Name, DiplomacyStatus status) {
         if (!checkAdmin(admin))
             return;
@@ -205,19 +176,16 @@ public class AdminService {
             return;
         }
 
-        // Set bidirectional relationship for ALLY
         group1.setDiplomacyStatus(group2.getId(), status);
         if (status == DiplomacyStatus.ALLY) {
             group2.setDiplomacyStatus(group1.getId(), status);
         }
 
-        // Granular persistence
         groupService.persistSetDiplomacy(group1.getId(), group2.getId(), status);
         if (status == DiplomacyStatus.ALLY) {
             groupService.persistSetDiplomacy(group2.getId(), group1.getId(), status);
         }
 
-        // Notify both groups
         String message = "Diplomacy with "
                 + (status == DiplomacyStatus.ALLY ? "alliance" : status.toString().toLowerCase())
                 + " status set by administrator.";
@@ -239,21 +207,13 @@ public class AdminService {
                 group2Name, "status", status);
     }
 
-    /**
-     * Admin command to get detailed info about a group.
-     */
     public void adminInfo(PlayerRef admin, String groupName) {
         if (!checkAdmin(admin))
             return;
 
-        // Delegate to existing info command but bypass permission checks
         groupService.getGroupInfo(admin, groupName);
     }
 
-    /**
-     * Admin command to set a group's bank balance.
-     * Bypasses all permission checks.
-     */
     public void adminSetMoney(PlayerRef admin, String groupName, double amount) {
         if (!checkAdmin(admin))
             return;
@@ -272,13 +232,11 @@ public class AdminService {
         double oldBalance = group.getBankBalance();
         group.setBankBalance(amount);
 
-        // Granular persistence
         groupService.persistUpdateGroup(group);
 
         groupService.notify(admin, "Set " + groupName + " bank balance from " +
                 String.format("%.2f", oldBalance) + " to " + String.format("%.2f", amount), false);
 
-        // Notify group members
         notificationService.broadcastGroup(
                 group.getMembers().stream().map(GroupMember::getPlayerId).toList(),
                 "Group bank balance set to " + String.format("%.2f", amount) + " by administrator.",
@@ -288,10 +246,6 @@ public class AdminService {
                 "old_balance", oldBalance, "new_balance", amount);
     }
 
-    /**
-     * Admin command to set a player's personal bank balance within their group.
-     * Bypasses all permission checks.
-     */
     public void adminSetPlayerMoney(PlayerRef admin, String playerName, double amount) {
         if (!checkAdmin(admin))
             return;
@@ -301,7 +255,6 @@ public class AdminService {
             return;
         }
 
-        // Find player's group and member
         UUID targetPlayerId = groupService.findPlayerUuidByName(playerName);
         if (targetPlayerId == null) {
             groupService.notify(admin, "Player '" + playerName + "' not found.");
@@ -323,7 +276,6 @@ public class AdminService {
         double oldBalance = member.getBankBalance();
         member.setBankBalance(amount);
 
-        // Granular persistence
         groupService.persistUpdateMember(group.getId(), member);
 
         groupService.notify(admin, "Set " + playerName + "'s balance from " +
@@ -333,12 +285,8 @@ public class AdminService {
                 "old_balance", oldBalance, "new_balance", amount);
     }
 
-    /**
-     * Grant admin permission to a player.
-     * This command itself bypasses permission checks (for initial setup).
-     */
     public void adminGrantPermission(PlayerRef admin, String targetName) {
-        // Check if admin (or allow if no one has permissions yet for initial setup)
+
         if (!hasAdminPermission(admin)) {
             groupService.notify(admin, "You don't have admin permission.");
             return;
@@ -359,9 +307,6 @@ public class AdminService {
         }
     }
 
-    /**
-     * Revoke admin permission from a player.
-     */
     public void adminRevokePermission(PlayerRef admin, String targetName) {
         if (!checkAdmin(admin))
             return;

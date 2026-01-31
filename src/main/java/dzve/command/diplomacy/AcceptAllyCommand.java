@@ -13,10 +13,6 @@ import dzve.service.group.GroupService;
 
 import javax.annotation.Nonnull;
 
-/**
- * Command to accept an ally request from another group.
- * Usage: /faction acceptally <groupName>
- */
 public class AcceptAllyCommand extends AbstractPlayerCommand {
 
     private final GroupService groupService;

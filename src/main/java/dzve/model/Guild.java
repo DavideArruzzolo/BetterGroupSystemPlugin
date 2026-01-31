@@ -35,7 +35,7 @@ public class Guild extends Group {
     @Override
     public void addMember(PlayerRef player, UUID roleId) {
         super.addMember(player, roleId);
-        // Default contribution is 0, already set in GroupMember
+
     }
 
     @Override

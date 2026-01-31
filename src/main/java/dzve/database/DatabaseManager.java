@@ -19,7 +19,7 @@ public class DatabaseManager {
     }
 
     public void connect() throws SQLException, ClassNotFoundException {
-        // Ensure driver is loaded
+
         Class.forName("org.sqlite.JDBC");
 
         File dbFile = new File(dataFolder, "groups.db");
@@ -27,13 +27,12 @@ public class DatabaseManager {
 
         java.util.Properties props = new java.util.Properties();
         props.setProperty("foreign_keys", "true");
-        // Set busy timeout to 30 seconds to handle locking situations better
+
         props.setProperty("busy_timeout", "30000");
 
         try (Connection conn = DriverManager.getConnection(url, props)) {
             LogService.info("DATABASE", "Connected to SQLite database at " + dbFile.getAbsolutePath());
 
-            // Enable WAL mode for better concurrency
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("PRAGMA journal_mode=WAL;");
                 stmt.execute("PRAGMA synchronous=NORMAL;");
@@ -46,7 +45,7 @@ public class DatabaseManager {
     private void initializeTables(Connection conn) {
         LogService.debug("DATABASE", "Initializing database tables...");
         try (Statement stmt = conn.createStatement()) {
-            // Groups Table
+
             stmt.execute("CREATE TABLE IF NOT EXISTS groups (" +
                     "id TEXT PRIMARY KEY, " +
                     "name TEXT NOT NULL UNIQUE, " +
@@ -56,17 +55,16 @@ public class DatabaseManager {
                     "created_at INTEGER, " +
                     "leader_id TEXT NOT NULL, " +
                     "type TEXT NOT NULL, " +
-                    "level INTEGER, " + // For Guild
-                    "money_to_next_level REAL, " + // For Guild
+                    "level INTEGER, " +
+                    "money_to_next_level REAL, " +
                     "bank_balance REAL DEFAULT 0, " +
                     "kills INTEGER DEFAULT 0, " +
                     "deaths INTEGER DEFAULT 0, " +
-                    "homes_json TEXT" + // Deprecated, using homes table
+                    "homes_json TEXT" +
                     ");");
 
-            // Members Table
             stmt.execute("CREATE TABLE IF NOT EXISTS members (" +
-                    "player_id TEXT NOT NULL, " + // UUID
+                    "player_id TEXT NOT NULL, " +
                     "group_id TEXT NOT NULL, " +
                     "player_name TEXT, " +
                     "role_id TEXT NOT NULL, " +
@@ -80,7 +78,6 @@ public class DatabaseManager {
                     "FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE" +
                     ");");
 
-            // Claims Table
             stmt.execute("CREATE TABLE IF NOT EXISTS claims (" +
                     "world_name TEXT NOT NULL, " +
                     "chunk_x INTEGER NOT NULL, " +
@@ -91,7 +88,6 @@ public class DatabaseManager {
                     "FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE" +
                     ");");
 
-            // Roles Table
             stmt.execute("CREATE TABLE IF NOT EXISTS roles (" +
                     "role_id TEXT NOT NULL, " +
                     "group_id TEXT NOT NULL, " +
@@ -102,7 +98,6 @@ public class DatabaseManager {
                     "FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE" +
                     ");");
 
-            // Relations Table (Diplomacy)
             stmt.execute("CREATE TABLE IF NOT EXISTS diplomacy (" +
                     "group_id_1 TEXT NOT NULL, " +
                     "group_id_2 TEXT NOT NULL, " +
@@ -112,7 +107,6 @@ public class DatabaseManager {
                     "FOREIGN KEY (group_id_2) REFERENCES groups(id) ON DELETE CASCADE" +
                     ");");
 
-            // Group Invitations
             stmt.execute("CREATE TABLE IF NOT EXISTS invitations (" +
                     "group_id TEXT NOT NULL, " +
                     "player_id TEXT NOT NULL, " +
@@ -122,7 +116,6 @@ public class DatabaseManager {
                     "FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE" +
                     ");");
 
-            // Homes Table
             stmt.execute("CREATE TABLE IF NOT EXISTS homes (" +
                     "home_id TEXT PRIMARY KEY, " +
                     "group_id TEXT NOT NULL, " +
@@ -136,7 +129,6 @@ public class DatabaseManager {
                     "FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE" +
                     ");");
 
-            // Check for schema updates (migrations)
             checkSchemaUpdates(conn);
 
         } catch (SQLException e) {
@@ -146,7 +138,7 @@ public class DatabaseManager {
 
     private void checkSchemaUpdates(Connection conn) {
         try (Statement stmt = conn.createStatement()) {
-            // Check members table for new columns
+
             boolean hasPower = false;
             boolean hasContribution = false;
             boolean hasBankBalance = false;
@@ -187,12 +179,12 @@ public class DatabaseManager {
         String url = "jdbc:sqlite:" + dbFile.getAbsolutePath();
         java.util.Properties props = new java.util.Properties();
         props.setProperty("foreign_keys", "true");
-        // Set busy timeout to 30 seconds to handle locking situations better
+
         props.setProperty("busy_timeout", "30000");
         return DriverManager.getConnection(url, props);
     }
 
     public void close() {
-        // No persistent connection to close
+
     }
 }

@@ -14,10 +14,6 @@ import dzve.service.admin.AdminService;
 
 import javax.annotation.Nonnull;
 
-/**
- * Admin command to set a player's personal bank balance.
- * Usage: /faction admin setplayermoney <playerName> <amount>
- */
 public class AdminSetPlayerMoneyCommand extends AbstractPlayerCommand {
 
     private final AdminService adminService;

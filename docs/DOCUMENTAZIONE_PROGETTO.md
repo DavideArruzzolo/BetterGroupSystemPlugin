@@ -2,185 +2,188 @@
 
 ## 1. Panoramica
 
-**BetterGroupSystemPlugin** è un plugin completo per server Hytale che implementa un sistema avanzato di Fazioni e
-Gilde. Il progetto è progettato per gestire gruppi di giocatori, territori, economia e diplomazia, offrendo
-un'esperienza di gioco strategica e competitiva.
+**BetterGroupSystemPlugin** è un plugin completo per server Hytale che implementa Fazioni e Gilde. Il sistema gestisce
+gruppi, territori, economia virtuale chiusa e diplomazia avanzata.
 
-### Funzionalità Principali
+### Modalità di Gioco
 
-* **Gestione Gruppi**: Creazione, gestione membri, ruoli personalizzabili.
-* **Territorio (Claim)**: Protezione dei chunk, sistema di "Home", e meccaniche di raid basate sul potere.
-* **Economia**: Banca di fazione, tasse (*Work in Progress*), livelli di gilda acquistabili.
-* **Potere (Power)**: Sistema dinamico di potere che determina la vulnerabilità delle fazioni.
-* **Diplomazia**: Gestione di relazioni (Alleati, Neutrali, Nemici).
-* **Integrazione Globale**: Chat formattata e marcatori sulla mappa.
-* **Notifiche**: Sistema di notifiche in tempo reale.
+Il plugin opera in due modalità switchabili (Config: `PluginMode`):
 
----
+1. **FACTION** (Default):
+    * Focalizzata sul **PvP e Raiding**.
+    * Basata sul **Power**. Se `Power < Claims`, la fazione è **Raidable** (vulnerabile).
+2. **GUILD**:
+    * Focalizzata sulla **Cooperazione**.
+    * Basata su **Livelli**. I livelli sbloccano slot membri extra.
 
-## 2. Installazione e Configurazione
+### Visibilità Mappa
 
-### Installazione
-
-Posizionare il file `.jar` generato nella cartella `mods` del server Hytale.
-
-### Configurazione (`groups.json`)
-
-Il file si trova in `mods/Dzve_BetterGroupSystemPlugin/data/groups.json`.
-
-* **Generali**:
-    * `PluginMode`: `FACTION` (con Power) o `GUILD` (con Livelli).
-    * `AllowedWorlds`: Mondi abilitati (default: `*`).
-    * `MaxSize`: Membri massimi base (default: 10).
-* **Economia**:
-    * `InitialPrice`: Costo creazione.
-    * `EnableTax`: *Nota: Il parametro esiste nel config ma la logica di prelievo automatico non sembra essere attiva
-      nel codice corrente.*
-* **Potere (Power)**:
-    * `PlayerInitialPower`: (default: 5)
-    * `PlayerPowerMax`: (default: 100)
-    * `PowerLooseByDeath`: (default: 1)
-* **Admin**:
-    * Non ci sono comandi di bypass admin espliciti, eccetto `reload` che richiede modalità Creativa.
+* **HidePlayers** (Config):
+    * `true`: I giocatori vedono sulla mappa **solo** i membri del proprio gruppo e gli alleati.
+    * `false`: Tutti i giocatori sono visibili a tutti sulla mappa globale.
 
 ---
 
-## 3. Sistema di Gruppi e Ruoli
+## 2. Meccaniche di Gioco
 
-### Gestione Membri
+### Sistema Potere (Power) - Solo FACTION
 
-* **Inviti**: I leader possono invitare giocatori con `/faction invite`.
-* **Ruoli**: Sistema flessibile. I ruoli personalizzati possono avere i seguenti permessi:
+* **Formula Raidability**: Una fazione è Raidable se `TotalPower < NumberOfClaims`.
+* **Conquista (Raid)**: Se una fazione è Raidable, un nemico può usare `/faction claim` sul loro territorio per *rubarlo
+  istantaneamente*.
+* **Gestione Power**:
+    * **Morte**: `-1.0` (Config: `PowerLooseByDeath`).
+    * **Kill**: `+1.0` (Config: `PowerGainByKill`) solo se uccidi un nemico di un'altra fazione.
+    * **Regen Online**: `+0.001` ogni minuto.
+    * **Regen Offline**: `+0.0001` (molto lento).
+    * **Cap**: Min `-100`, Max `+100`.
 
-### Nodi Permessi (Case Sensitive)
+### Sistema Livelli (Levels) - Solo GUILD
 
-* `CAN_MANAGE_BANK`: Depositare/Prelevare.
-* `CAN_UPDATE_GROUP`: Modificare informazioni gruppo.
-* `CAN_INVITE`: Invitare nuovi membri.
-* `CAN_KICK`: Espellere membri.
-* `CAN_CHANGE_ROLE`: Modificare ruolo membri.
-* `CAN_MANAGE_ROLE`: Creare/Eliminare ruoli.
-* `CAN_MANAGE_HOME`: Gestire le Home.
-* `CAN_TELEPORT_HOME`: Usare le Home.
-* `CAN_MANAGE_CLAIM`: Reclamare territori.
-* `CAN_INTERACT_IN_CLAIM`: Costruire in territorio protetto.
-* `CAN_MANAGE_DIPLOMACY`: Gestire relazioni diplomatiche.
-* `CAN_CHAT_INTERNAL`: Usare chat gruppo.
-* `CAN_CHAT_ALLY`: Usare chat alleanza.
-* `CAN_UPGRADE_GUILD`: Livellare la gilda (Solo modalità GUILD).
+Le gilde non hanno potere, ma livelli acquistabili.
 
----
+* **Costo Upgrade**: `InitialPrice * (Multiplier ^ (CurrentLevel + 1))`
+    * Esempio (Default): `2500 * (1.2 ^ (Level + 1))`
+* **Benefici**: Ogni livello aggiunge `SlotQuantityGainForLevel` (default 10) slot membri.
 
-## 4. Intestazioni Gameplay
+### Territorio e Mappa
 
-### Chat Formatting
+* **Protezione**: Blocca `Break`, `Place`, `Use`, `Damage` a chi non è membro.
+* **Mappa Claim**: Visualizzabile con `/faction map` (Area 21x6 chunk).
+    * `@`: Posizione corrente.
+    * `O`: Own (Tuo).
+    * `A`: Ally.
+    * `E`: Enemy.
+    * `-`: Wild.
 
-Formato: `[TAG] NomeGiocatore: Messaggio`
-Il colore del tag e delle parentesi dipende dal colore scelto dalla fazione.
+### Economia (Virtuale Chiusa)
 
-### Mappa (WorldMap)
+Il sistema economico è interno e non comunica con item fisici.
 
-I membri del gruppo vedono i marker dei compagni sulla mappa in tempo reale (`WorldMapTracker`).
-
----
-
-## 5. Territorio e Protezione
-
-### Claims
-
-I claim proteggono i chunk (16x16 blocchi) da modifiche esterne.
-
-* **Eventi Protetti**: `BreakBlock`, `PlaceBlock`, `UseBlock`, `DamageBlock`, `PvP` (Friendly Fire disabilitato).
-
-### Raiding (Solo modalità FACTION)
-
-Se `Potere Totale < Numero Claims`, la fazione diventa **Raidable**.
-In questo stato, le protezioni sui blocchi vengono disattivate per permettere attacchi.
-
-* **Notifica Raid**: Se un non-membro entra in un territorio raidable, i membri ricevono un alert ("Danger").
+1. **Admin**: Unico creatore di valuta (`/faction admin setplayermoney`).
+2. **Personale**: Saldo del giocatore (virtuale).
+3. **Banca Gruppo**: Saldo del gruppo (accumulato tramite depositi).
+    * Usa `/faction deposit` per spostare "Personale -> Banca".
+    * Usa `/faction withdraw` per spostare "Banca -> Personale".
 
 ---
 
-## 6. Economia e Progressione
+## 3. Riferimento Tecnico Avanzato
 
-### Banca
+### Validazione Input
 
-Ogni gruppo ha un conto comune.
+Tutti i nomi (Gruppi, Tag, Home) devono rispettare queste regole rigorose:
 
-* Deposito: Libero.
-* Prelievo: Richiede permesso `CAN_MANAGE_BANK`.
+* **Regex**: `^[\p{L}\p{N}_]+$` (Solo Lettere, Numeri, Underscore).
+* **Lunghezza Nome**: 3-15 caratteri.
+* **Lunghezza Tag**: 2-5 caratteri.
+* **Colore**: Deve essere un HEX valido (es. `#FF0000`).
 
-### Livelli Gilda (Solo modalità GUILD)
+### Permessi (Nodes)
 
-Formula costo upgrade:
-`Costo = InitialPrice * (LevelPriceMultiplier ^ (Livello + 1))`
-Ogni livello aggiunge slot membri extra (`SlotQuantityGainForLevel`).
+Ogni azione sensibile richiede un permesso specifico nel Ruolo del giocatore.
+| Azione | Nodo Permesso |
+| :--- | :--- |
+| Prelevare soldi | `CAN_MANAGE_BANK` |
+| Modificare nome/desc/tag/color | `CAN_UPDATE_GROUP` |
+| Invitare giocatori | `CAN_INVITE` |
+| Espellere membri | `CAN_KICK` |
+| Gestire Ruoli (Creare/Assegnare) | `CAN_MANAGE_ROLE` / `CAN_CHANGE_ROLE` |
+| Settare/Eliminare Home | `CAN_MANAGE_HOME` |
+| Teletrasportarsi alle Home | `CAN_TELEPORT_HOME` |
+| Reclamare/Unclaimare terre | `CAN_MANAGE_CLAIM` |
+| Costruire in territorio protetto | `CAN_INTERACT_IN_CLAIM` |
+| Dichiarare guerra/alleanza | `CAN_MANAGE_DIPLOMACY` |
+| Livellare la Gilda | `CAN_UPGRADE_GUILD` |
+| Chat Gruppo/Alleata | `CAN_CHAT_INTERNAL` / `CAN_CHAT_ALLY` |
 
----
+*Il Leader ha tutti i permessi (bypass).*
 
-## 7. Diplomazia
+### Persistenza Dati
 
-Due stati principali implementati:
+* **Database**: SQLite JDBC (`org.sqlite.JDBC`).
+* **Path**: `mods/Dzve_BetterGroupSystemPlugin/data/groups.db` (NON JSON).
+* **Backup**: Consigliato fare backup del file `.db`. Le operazioni sono Atomiche (WAL Mode attivo).
+* **Struttura**: Tabelle Relazionali (`groups`, `members`, `claims`, `diplomacy`, `homes`, `roles`).
 
-1. **Neutrale**: Default. Danni PvP attivi.
-2. **Alleato (Ally)**: Danni PvP disabilitati. Accesso alla chat alleanza.
-    * *Nota: Attualmente la richiesta di alleanza è asimmetrica o parzialmente implementata nel comando ("Alliance
-      request sent (Not implemented fully)"). Impostare lo stato forza la relazione.*
+### Valori Hardcoded (Non Configurabili)
 
----
+Alcuni elementi sono cablati nel codice e non modificabili da config:
 
-## 8. Comandi Completi
-
-Prefisso base: `/faction`
-
-| Comando        | Argomenti          | Descrizione                                    |
-|:---------------|:-------------------|:-----------------------------------------------|
-| **Generale**   |                    |                                                |
-| `create`       | `<nome>`           | Crea un nuovo gruppo.                          |
-| `disband`      |                    | Scioglie il gruppo (Solo Leader).              |
-| `leave`        |                    | Abbandona il gruppo.                           |
-| `info`         | `[nome]`           | Info su gruppo, banca, power, ecc.             |
-| `reload`       |                    | Ricarica config (Richiede Creative).           |
-| **Membri**     |                    |                                                |
-| `invite`       | `<player>`         | Invita un giocatore.                           |
-| `kick`         | `<player>`         | Espelle un membro.                             |
-| **Ruoli**      |                    |                                                |
-| `role create`  | `<nome> [perms]`   | Crea ruolo (es. `role create Mod CAN_INVITE`). |
-| `role set`     | `<player> <ruolo>` | Assegna ruolo.                                 |
-| `role delete`  | `<nome>`           | Cancella ruolo.                                |
-| `role list`    |                    | Lista ruoli e permessi.                        |
-| **Territorio** |                    |                                                |
-| `claim`        |                    | Rivendica chunk corrente.                      |
-| `unclaim`      |                    | Rimuove claim corrente.                        |
-| `home`         | `<nome>`           | Teletrasporto.                                 |
-| `sethome`      | `<nome>`           | Crea punto home.                               |
-| `listhomes`    |                    | Lista homes.                                   |
-| `map`          |                    | Toggle mappa visuale claims.                   |
-| **Economia**   |                    |                                                |
-| `deposit`      | `<amount>`         | Deposita soldi.                                |
-| `withdraw`     | `<amount>`         | Preleva soldi.                                 |
-| `balance`      |                    | Mostra saldo.                                  |
-| `upgrade`      |                    | (GUILD) Livella la gilda.                      |
-| **Diplomazia** |                    |                                                |
-| `diplomacy`    | `<gruppo> <stato>` | Imposta relazione (ALLY, NEUTRAL, ENEMY).      |
-| **Chat**       |                    |                                                |
-| `chat group`   | `<msg>`            | Invia messaggio ai membri.                     |
-| `chat ally`    | `<msg>`            | Invia messaggio agli alleati.                  |
+1. **Driver Database**: SQLite (`groups.db`).
+2. **Simboli Mappa**: `@` (Tu), `O` (Own), `A` (Ally), `E` (Enemy), `-` (Wild).
+3. **Regex Nomi**: `^[\p{L}\p{N}_]+$` (Solo alfanumerici e underscore).
+4. **Chiavi Logica**: "FACTION" e "GUILD" sono stringhe interne fisse.
 
 ---
 
-## 9. Struttura Tecnica (Sviluppatori)
+## 4. Comandi (Reference Completo)
 
-### Architettura
+### Giocatori
 
-* **Service Singleton**: `GroupService` gestisce tutta la logica.
-* **Persistenza**: `JsonStorage` salva su file JSON locale.
-* **Eventi ECS**:
-    * `PvPProtectionSystem`: Blocca danni tra membri/alleati.
-    * `ClaimProtectionSystems`: Blocca interazioni nei chunk protetti.
+* `/faction create <name> [tag] [desc] [color]`
+* `/faction join <group>`
+* `/faction leave`
+* `/faction info [group]`
+* `/faction map`
+* `/faction deposit <amount>`
+* `/faction withdraw <amount>`
+* `/faction claim` (Costo: 0, ma richiede Power/Slot)
+* `/faction unclaim`
+* `/faction home <name>`
+* `/faction sethome <name>`
+* `/faction diplomacy <group> <ALLY|NEUTRAL|ENEMY>`
+* `/faction acceptAlly <group>`
+* `/faction chat <group|ally> <msg>`
 
-### Note Importanti
+### Admin (Richiede OP/Creative)
 
-* **Tasse**: Il parametro `EnableTax` nel config non ha effetto nel codice attuale (manca il task schedulato).
-* **Admin**: Non esiste un sistema di permessi "operator" (op) integrato. I comandi amministrativi si basano sulla
-  Gamemode o non sono presenti.
+* `/faction admin setplayermoney <player> <amount>` (**Fondamentale**)
+* `/faction admin setmoney <group> <amount>`
+* `/faction admin disband <group>`
+* `/faction admin info <group>`
+* `/faction admin reload`
+
+---
+
+## 5. API Sviluppatori (Java)
+
+Il plugin espone un'API pubblica per permettere ad altri plugin di interagire con il sistema (es. economia).
+
+### BetterGroupEconomyAPI
+
+Classe: `dzve.api.BetterGroupEconomyAPI`
+Thread-Safe e con persistenza automatica.
+
+#### Esempi di Utilizzo
+
+```java
+// Ottieni l'istanza singleton
+BetterGroupEconomyAPI api = BetterGroupEconomyAPI.getInstance();
+
+// --- Gestione Player ---
+UUID playerId = player.getUuid();
+
+// Ottieni saldo personale nel gruppo
+double balance = api.getMemberBalance(playerId);
+
+// Deposita/Preleva
+api.depositMemberBalance(playerId, 100.0);
+boolean success = api.withdrawMemberBalance(playerId, 50.0);
+
+// --- Gestione Gruppo ---
+UUID groupId = api.getPlayerGroup(playerId);
+if (groupId != null) {
+    // Ottieni saldo banca gruppo
+    double groupBank = api.getGroupBalance(groupId);
+    
+    // Modifica saldo banca
+    api.depositGroupBalance(groupId, 500.0);
+}
+```
+
+**Nota per la compilazione (Proguard)**:
+Il pacchetto `dzve.api` è escluso dall'offuscamento, quindi le classi e i metodi pubblici rimangono accessibili.
+
+---
+*Revisione 3.0 - Documentazione Tecnica Finale (2026-01-31)*

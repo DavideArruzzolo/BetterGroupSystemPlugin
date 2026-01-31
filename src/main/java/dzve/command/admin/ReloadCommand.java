@@ -1,4 +1,4 @@
-package dzve.command;
+package dzve.command.admin;
 
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -23,7 +23,9 @@ public class ReloadCommand extends AbstractPlayerCommand {
     }
 
     @Override
-    protected void execute(@Nonnull CommandContext commandContext, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef playerRef, @Nonnull World world) {
+    protected void execute(@Nonnull CommandContext commandContext, @Nonnull Store<EntityStore> store,
+                           @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef playerRef, @Nonnull World world) {
+        dzve.utils.LogService.info("COMMAND", "Player " + playerRef.getUsername() + " executed /reload");
         groupService.reload(playerRef);
     }
 }

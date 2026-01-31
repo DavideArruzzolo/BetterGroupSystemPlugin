@@ -36,13 +36,31 @@
 -keep class com.fasterxml.jackson.** { *; }
 -keepnames class com.fasterxml.jackson.** { *; }
 
-# Keep all classes in the model package to prevent serialization issues
--keep class dzve.model.** { *; }
--keepclassmembers class dzve.model.** { *; }
+# Models: Allow renaming of classes and non-annotated members, but keep what Jackson needs
+-keepclassmembers class dzve.model.** {
+    @com.fasterxml.jackson.annotation.* *;
+    <init>(...);
+}
+# Keep class names for models just in case of reflection/logging clarity (optional, user wanted MAX hiding, but this is safer for debugging)
+# Remove "-keep class dzve.model.** { *; }" to allow full obfuscation of internal methods and field names (mapped by annotation)
 
-# Keep config classes as they might be serialized/deserialized or accessed via reflection
--keep class dzve.config.** { *; }
--keepclassmembers class dzve.config.** { *; }
+# Config: Allow renaming, keep annotated
+-keepclassmembers class dzve.config.** {
+    @com.fasterxml.jackson.annotation.* *;
+    <init>(...);
+}
+
+# Keep API classes for external developers (PUBLIC only)
+-keep public class dzve.api.** {
+    public *;
+}
+-keepclassmembers class dzve.api.** {
+    public *;
+}
+
+# Keep API classes for external developers
+-keep class dzve.api.** { *; }
+-keepclassmembers class dzve.api.** { *; }
 
 -keepclassmembers class * {
     <init>(...);

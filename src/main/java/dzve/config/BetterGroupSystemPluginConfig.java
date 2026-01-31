@@ -10,7 +10,6 @@ import static com.hypixel.hytale.codec.Codec.*;
 public class BetterGroupSystemPluginConfig {
     public static final String MOD_NAME = "[BetterGroupPlugin]";
     public static final String DATA_FOLDER = "mods/Dzve_BetterGroupSystemPlugin/data";
-    public static final String FILE_NAME = "groups.json";
 
     public static final BuilderCodec<BetterGroupSystemPluginConfig> CODEC = BuilderCodec
             .builder(BetterGroupSystemPluginConfig.class, BetterGroupSystemPluginConfig::new)

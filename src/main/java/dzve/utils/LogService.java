@@ -42,7 +42,6 @@ public class LogService {
     private static void log(String level, String context, String message, Object... details) {
         String jsonLog = buildJsonLog(level, context, message, details);
 
-        // Output to Hytale Logger based on level
         if ("ERROR".equals(level)) {
             LOGGER.atSevere().log(jsonLog);
         } else if ("WARN".equals(level)) {

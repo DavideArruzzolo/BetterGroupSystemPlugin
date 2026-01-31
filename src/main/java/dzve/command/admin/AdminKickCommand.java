@@ -13,10 +13,6 @@ import dzve.service.admin.AdminService;
 
 import javax.annotation.Nonnull;
 
-/**
- * Admin command to forcefully kick a member from a group.
- * Usage: /faction admin kick <groupName> <playerName>
- */
 public class AdminKickCommand extends AbstractPlayerCommand {
 
     private final AdminService adminService;
@@ -35,6 +31,8 @@ public class AdminKickCommand extends AbstractPlayerCommand {
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
                            @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+        dzve.utils.LogService.info("ADMIN_COMMAND", "Player " + player.getUsername() + " executed /faction admin kick "
+                + groupName.get(ctx) + " " + playerName.get(ctx));
         adminService.adminKick(player, groupName.get(ctx), playerName.get(ctx));
     }
 }

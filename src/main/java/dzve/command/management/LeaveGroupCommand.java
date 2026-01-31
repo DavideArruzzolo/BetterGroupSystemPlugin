@@ -20,7 +20,10 @@ public class LeaveGroupCommand extends AbstractPlayerCommand {
     }
 
     @Override
-    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
+                           @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+        dzve.utils.LogService.info("COMMAND", "Player " + player.getUsername() + " * Usage: /"
+                + GroupService.getConfig().getAllCommandsPrefix() + " leave");
         groupService.leaveGroup(player);
     }
 }

@@ -44,6 +44,11 @@ public class ClaimProtectionSystems {
             return false;
         }
 
+        UUID playerId = player.getUuid();
+        if (group.isMember(playerId)) {
+            return false;
+        }
+
         if (group instanceof Faction faction) {
             if (faction.isRaidable()) {
                 long currentTime = System.currentTimeMillis();
@@ -56,11 +61,6 @@ public class ClaimProtectionSystems {
                 }
                 return false;
             }
-        }
-
-        UUID playerId = player.getUuid();
-        if (group.isMember(playerId)) {
-            return false;
         }
 
         notificationService.sendNotification(player.getUuid(), "This territory is protected by " + group.getName(),

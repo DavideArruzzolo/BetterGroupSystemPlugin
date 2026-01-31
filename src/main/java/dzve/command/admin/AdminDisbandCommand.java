@@ -13,10 +13,6 @@ import dzve.service.admin.AdminService;
 
 import javax.annotation.Nonnull;
 
-/**
- * Admin command to forcefully disband a group.
- * Usage: /faction admin disband <groupName>
- */
 public class AdminDisbandCommand extends AbstractPlayerCommand {
 
     private final AdminService adminService;
@@ -33,6 +29,8 @@ public class AdminDisbandCommand extends AbstractPlayerCommand {
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
                            @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+        dzve.utils.LogService.info("ADMIN_COMMAND",
+                "Player " + player.getUsername() + " executed /faction admin disband " + groupName.get(ctx));
         adminService.adminDisband(player, groupName.get(ctx));
     }
 }

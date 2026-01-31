@@ -13,10 +13,6 @@ import dzve.service.group.GroupService;
 
 import javax.annotation.Nonnull;
 
-/**
- * Command to deny an ally request from another group.
- * Usage: /faction denyally <groupName>
- */
 public class DenyAllyCommand extends AbstractPlayerCommand {
 
     private final GroupService groupService;

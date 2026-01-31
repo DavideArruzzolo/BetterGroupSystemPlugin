@@ -14,10 +14,6 @@ import dzve.service.group.GroupService;
 
 import javax.annotation.Nonnull;
 
-/**
- * Admin command to get detailed info about a group.
- * Usage: /faction admin info <groupName>
- */
 public class AdminInfoCommand extends AbstractPlayerCommand {
 
     private final GroupService groupService;

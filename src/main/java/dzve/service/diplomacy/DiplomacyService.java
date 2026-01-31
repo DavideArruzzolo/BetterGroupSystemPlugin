@@ -23,7 +23,6 @@ public class DiplomacyService {
 
     private final GroupService groupService;
 
-    // Map of target group UUID -> Set of requesting group UUIDs
     private final Map<UUID, Set<UUID>> allyRequests = new ConcurrentHashMap<>();
 
     public DiplomacyService(GroupService groupService) {
@@ -54,68 +53,48 @@ public class DiplomacyService {
         }
 
         if (status == DiplomacyStatus.ALLY) {
-            // Send ally request instead of setting directly
+
             sendAllyRequest(sender, group, target);
         } else {
-            // For NEUTRAL or ENEMY, check if currently allied and remove both sides
+
             if (group.getDiplomacyStatus(target.getId()) == DiplomacyStatus.ALLY) {
-                // Breaking alliance - remove from both sides
+
                 group.setDiplomacyStatus(target.getId(), status);
                 target.setDiplomacyStatus(group.getId(), DiplomacyStatus.NEUTRAL);
 
-                // Notify target group
                 NotificationService.getInstance().broadcastGroup(
                         target.getMembers().stream().map(GroupMember::getPlayerId).toList(),
                         group.getName() + " has broken the alliance with your group.",
                         Warning);
 
-                // Persist the target's side of the broken alliance
                 groupService.persistSetDiplomacy(target.getId(), group.getId(), DiplomacyStatus.NEUTRAL);
             } else {
                 group.setDiplomacyStatus(target.getId(), status);
             }
 
             groupService.persistSetDiplomacy(group.getId(), target.getId(), status);
-            // Bidirectional?
-            // "The other group sees us as NEUTRAL?" -> No, diplomacy table is bidirectional
-            // logically if we insert (g1, g2, status).
-            // My DAO sets (g1, g2, status). It doesn't autoset (g2, g1, status) unless I
-            // call it.
-            // But previous logic was: group.setDiplomacy(target, status). Target wasn't
-            // updated in memory?
-            // "target.setDiplomacyStatus(group.getId(), DiplomacyStatus.NEUTRAL);" was
-            // called above for breaking alliance.
-            // But if just setting ENEMY, it only updated 'group'.
-
-            // If I want to persist strictly what happened in memory:
-            // persistSetDiplomacy(group.getId(), target.getId(), status);
 
             groupService.notify(sender, "Diplomacy with " + target.getName() + " set to " + status, false);
         }
     }
 
-    /**
-     * Send an alliance request to another group.
-     */
     private void sendAllyRequest(PlayerRef sender, Group from, Group to) {
         LogService.debug("DIPLOMACY", "Sending ally request", "from", from.getName(), "to", to.getName());
-        // Check if already allied
+
         if (from.getDiplomacyStatus(to.getId()) == DiplomacyStatus.ALLY) {
             groupService.notify(sender, "You are already allied with " + to.getName() + ".");
             return;
         }
 
-        // Check if request already pending
         Set<UUID> pendingRequests = allyRequests.get(to.getId());
         if (pendingRequests != null && pendingRequests.contains(from.getId())) {
             groupService.notify(sender, "Alliance request already pending.");
             return;
         }
 
-        // Check if the target has already sent us a request (auto-accept)
         Set<UUID> ourPendingRequests = allyRequests.get(from.getId());
         if (ourPendingRequests != null && ourPendingRequests.contains(to.getId())) {
-            // They already requested us, so accept automatically
+
             establishAlliance(from, to);
             ourPendingRequests.remove(to.getId());
             groupService.notify(sender, "Alliance established with " + to.getName() + "! (They had already requested)",
@@ -123,22 +102,18 @@ public class DiplomacyService {
             return;
         }
 
-        // Add request
         allyRequests.computeIfAbsent(to.getId(), k -> ConcurrentHashMap.newKeySet()).add(from.getId());
 
         groupService.notify(sender, "Alliance request sent to " + to.getName() + ".", false);
 
-        // Notify target group members
         NotificationService.getInstance().broadcastGroup(
                 to.getMembers().stream().map(GroupMember::getPlayerId).toList(),
-                from.getName() + " has requested an alliance! Use '/faction acceptally " + from.getName()
+                from.getName() + " has requested an alliance! Use '" + GroupService.getConfig().getAllCommandsPrefix()
+                        + " acceptally " + from.getName()
                         + "' to accept.",
                 Success);
     }
 
-    /**
-     * Accept an alliance request from another group.
-     */
     public void acceptAllyRequest(PlayerRef sender, String targetGroupName) {
         Group group = groupService.getGroupOrNotify(sender);
         if (group == null)
@@ -160,22 +135,19 @@ public class DiplomacyService {
             return;
         }
 
-        // Establish alliance
         establishAlliance(group, requestingGroup);
         pendingRequests.remove(requestingGroup.getId());
+        LogService.info("DIPLOMACY", "Alliance accepted", "acceptor", group.getName(), "requestor",
+                requestingGroup.getName());
 
         groupService.notify(sender, "Alliance established with " + requestingGroup.getName() + "!", false);
 
-        // Notify the requesting group
         NotificationService.getInstance().broadcastGroup(
                 requestingGroup.getMembers().stream().map(GroupMember::getPlayerId).toList(),
                 group.getName() + " has accepted your alliance request!",
                 Success);
     }
 
-    /**
-     * Deny an alliance request from another group.
-     */
     public void denyAllyRequest(PlayerRef sender, String targetGroupName) {
         Group group = groupService.getGroupOrNotify(sender);
         if (group == null)
@@ -200,16 +172,12 @@ public class DiplomacyService {
         pendingRequests.remove(requestingGroup.getId());
         groupService.notify(sender, "Alliance request from " + requestingGroup.getName() + " denied.", false);
 
-        // Notify the requesting group
         NotificationService.getInstance().broadcastGroup(
                 requestingGroup.getMembers().stream().map(GroupMember::getPlayerId).toList(),
                 group.getName() + " has denied your alliance request.",
                 Warning);
     }
 
-    /**
-     * List pending alliance requests for the player's group.
-     */
     public void listAllyRequests(PlayerRef sender) {
         Group group = groupService.getGroupOrNotify(sender);
         if (group == null)
@@ -237,9 +205,6 @@ public class DiplomacyService {
         sender.sendMessage(msg.toMessage());
     }
 
-    /**
-     * Establish a bidirectional alliance between two groups.
-     */
     private void establishAlliance(Group group1, Group group2) {
         LogService.info("DIPLOMACY", "Establishing alliance", "group1", group1.getName(), "group2", group2.getName());
         group1.setDiplomacyStatus(group2.getId(), DiplomacyStatus.ALLY);
@@ -290,14 +255,6 @@ public class DiplomacyService {
                 msg[0] = msg[0].append("\n");
             }
 
-//            if (relationsByStatus.containsKey(DiplomacyStatus.NEUTRAL)) {
-//                msg[0] = msg[0].append("Neutral:\n").withBold();
-//                for (Group neutral : relationsByStatus.get(DiplomacyStatus.NEUTRAL)) {
-//                    msg[0] = msg[0].append("  ● ")
-//                            .append(neutral.getName())
-//                            .append(" (" + neutral.getTag() + ")\n");
-//                }
-//            }
         }
         sender.sendMessage(msg[0].toMessage());
     }

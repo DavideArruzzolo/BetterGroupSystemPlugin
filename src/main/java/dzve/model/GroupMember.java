@@ -12,6 +12,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class GroupMember {
+    @EqualsAndHashCode.Include
     @JsonProperty("playerId")
     private UUID playerId;
     @JsonProperty("playerName")

@@ -15,10 +15,6 @@ import dzve.service.admin.AdminService;
 
 import javax.annotation.Nonnull;
 
-/**
- * Admin command to forcefully set diplomacy between two groups.
- * Usage: /faction admin setdiplomacy <group1> <group2> <status>
- */
 public class AdminSetDiplomacyCommand extends AbstractPlayerCommand {
 
     private final AdminService adminService;

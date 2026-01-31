@@ -24,8 +24,7 @@ public final class NotificationService {
     }
 
     public void broadcastGroup(List<UUID> players, String message, NotificationStyle style) {
-        // LogService.debug("NOTIFICATION", "Broadcasting to group", "count",
-        // players.size(), "message", message);
+
         for (UUID player : players) {
             sendNotification(player, message, style);
         }
