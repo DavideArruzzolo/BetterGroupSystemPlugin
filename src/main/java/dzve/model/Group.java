@@ -53,7 +53,7 @@ public abstract class Group {
 
     @Builder.Default
     @JsonProperty("roles")
-    private Set<GroupRole> roles = GroupRole.initializeRoles();
+    private Set<GroupRole> roles = new HashSet<>(GroupRole.initializeRoles());
 
     @Builder.Default
     @JsonProperty("bankBalance")
@@ -153,6 +153,10 @@ public abstract class Group {
 
     public boolean withdrawFromGroup(double amount, UUID playerId) {
         if (amount > 0 && bankBalance >= amount) {
+            if (isLeader(playerId)) {
+                this.bankBalance -= amount;
+                return true;
+            }
             GroupMember member = getMember(playerId);
             if (member != null) {
                 GroupRole role = getRole(member.getRoleId());

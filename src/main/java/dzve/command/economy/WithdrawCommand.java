@@ -3,7 +3,6 @@ package dzve.command.economy;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
-import com.hypixel.hytale.server.core.command.system.arguments.system.OptionalArg;
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
@@ -17,9 +16,9 @@ import javax.annotation.Nonnull;
 public class WithdrawCommand extends AbstractPlayerCommand {
     private final GroupService groupService;
     @Nonnull
-    private final RequiredArg<Double> amount = withRequiredArg("amount", "Quantity", ArgTypes.DOUBLE);
+    private final RequiredArg<String> type = withRequiredArg("type", "player or group", ArgTypes.STRING);
     @Nonnull
-    private final OptionalArg<String> type = withOptionalArg("type", "player or group", ArgTypes.STRING);
+    private final RequiredArg<Double> amount = withRequiredArg("amount", "Quantity", ArgTypes.DOUBLE);
 
     public WithdrawCommand(GroupService groupService) {
         super("withdraw", "Withdraw money from your personal or group bank");
@@ -27,12 +26,13 @@ public class WithdrawCommand extends AbstractPlayerCommand {
     }
 
     @Override
-    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
+                           @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
         String target = type.get(ctx);
-        if (target != null && target.equalsIgnoreCase("group")) {
-            groupService.withdrawFromGroup(player, amount.get(ctx));
-        } else {
+        if (target != null && target.equalsIgnoreCase("player")) {
             groupService.withdraw(player, amount.get(ctx));
+        } else {
+            groupService.withdrawFromGroup(player, amount.get(ctx));
         }
     }
 }

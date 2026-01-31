@@ -25,8 +25,20 @@ public class DatabaseManager {
         File dbFile = new File(dataFolder, "groups.db");
         String url = "jdbc:sqlite:" + dbFile.getAbsolutePath();
 
-        try (Connection conn = DriverManager.getConnection(url)) {
+        java.util.Properties props = new java.util.Properties();
+        props.setProperty("foreign_keys", "true");
+        // Set busy timeout to 30 seconds to handle locking situations better
+        props.setProperty("busy_timeout", "30000");
+
+        try (Connection conn = DriverManager.getConnection(url, props)) {
             LogService.info("DATABASE", "Connected to SQLite database at " + dbFile.getAbsolutePath());
+
+            // Enable WAL mode for better concurrency
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("PRAGMA journal_mode=WAL;");
+                stmt.execute("PRAGMA synchronous=NORMAL;");
+            }
+
             initializeTables(conn);
         }
     }
@@ -63,6 +75,7 @@ public class DatabaseManager {
                     "default_home_id TEXT, " +
                     "player_power REAL DEFAULT 0, " +
                     "contribution REAL DEFAULT 0, " +
+                    "bank_balance REAL DEFAULT 0, " +
                     "PRIMARY KEY (player_id, group_id), " +
                     "FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE" +
                     ");");
@@ -136,6 +149,7 @@ public class DatabaseManager {
             // Check members table for new columns
             boolean hasPower = false;
             boolean hasContribution = false;
+            boolean hasBankBalance = false;
 
             try (java.sql.ResultSet rs = stmt.executeQuery("PRAGMA table_info(members)")) {
                 while (rs.next()) {
@@ -144,6 +158,8 @@ public class DatabaseManager {
                         hasPower = true;
                     if ("contribution".equalsIgnoreCase(name))
                         hasContribution = true;
+                    if ("bank_balance".equalsIgnoreCase(name))
+                        hasBankBalance = true;
                 }
             }
 
@@ -156,6 +172,11 @@ public class DatabaseManager {
                 LogService.info("DATABASE", "Migrating database: Adding contribution column to members table...");
                 stmt.execute("ALTER TABLE members ADD COLUMN contribution REAL DEFAULT 0;");
             }
+
+            if (!hasBankBalance) {
+                LogService.info("DATABASE", "Migrating database: Adding bank_balance column to members table...");
+                stmt.execute("ALTER TABLE members ADD COLUMN bank_balance REAL DEFAULT 0;");
+            }
         } catch (SQLException e) {
             LogService.error("DATABASE", "Failed to check/apply schema updates", e);
         }
@@ -166,6 +187,8 @@ public class DatabaseManager {
         String url = "jdbc:sqlite:" + dbFile.getAbsolutePath();
         java.util.Properties props = new java.util.Properties();
         props.setProperty("foreign_keys", "true");
+        // Set busy timeout to 30 seconds to handle locking situations better
+        props.setProperty("busy_timeout", "30000");
         return DriverManager.getConnection(url, props);
     }
 

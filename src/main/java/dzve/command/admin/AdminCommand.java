@@ -39,7 +39,7 @@ public class AdminCommand extends AbstractPlayerCommand {
 
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
-            @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+                           @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
         player.sendMessage(ChatFormatter.of("Admin commands:").toMessage());
         getSubCommands().forEach((name, cmd) -> player
                 .sendMessage(ChatFormatter.of(" - admin " + name + ": " + cmd.getDescription()).toMessage()));

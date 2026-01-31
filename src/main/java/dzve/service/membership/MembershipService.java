@@ -185,6 +185,10 @@ public class MembershipService {
         Group group = groupService.getGroupOrNotify(sender);
         if (group == null || !group.isLeader(sender.getUuid()))
             return;
+        if (sender.getUuid().equals(targetId)) {
+            groupService.notify(sender, "You cannot transfer leadership to yourself.");
+            return;
+        }
         if (!group.isMember(targetId)) {
             groupService.notify(sender, "Target not in group.");
             return;
@@ -390,8 +394,7 @@ public class MembershipService {
             return;
         }
 
-        final ChatFormatter.StyledText[] msg = {ChatFormatter.of("=== Pending Group Invitations ===\n\n")
-                .withColor(Color.YELLOW).withBold()};
+        final ChatFormatter.StyledText[] msg = {ChatFormatter.of("=== Pending Group Invitations ===\n").withBold()};
 
         invites.stream()
                 .map(groupService::getGroup)
@@ -402,45 +405,22 @@ public class MembershipService {
                             .map(GroupMember::getPlayerName)
                             .orElse("N/A");
 
-                    msg[0] = msg[0].append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n").withColor(Color.CYAN)
-                            .append("Group: ").withColor(Color.YELLOW).withBold()
-                            .append(group.getName()).withColor(groupColor).append("\n")
-                            .append("Tag: ").withColor(Color.CYAN)
-                            .append(group.getTag()).withColor(groupColor).append("\n")
-                            .append("Leader: ").withColor(Color.GREEN)
-                            .append(leaderName).append("\n")
-                            .append("Type: ").withColor(Color.WHITE)
-                            .append(group.getType().name()).append("\n")
-                            .append("Members: ").withColor(new Color(255, 170, 0))
-                            .append(group.getMembers().size() + " / " +
+                    msg[0] = msg[0].append("Group: ").withBold().append(group.getName()).append("\n")
+                            .append("\tTag: ").append(group.getTag()).withColor(groupColor).append("\n")
+                            .append("\tMembers: ").append(group.getMembers().size() + " / " +
                                     (group.getType().equals(GroupType.FACTION) ? GroupService.getConfig().getMaxSize()
                                             : GroupService.getConfig().getMaxSize()
                                             + GroupService.getConfig().getSlotQuantityGainForLevel()
                                             * ((Guild) group).getLevel()))
                             .append("\n");
-
-                    if (group.getDescription() != null && !group.getDescription().trim().isEmpty()) {
-                        msg[0] = msg[0].append("Description: ").withColor(Color.GRAY)
-                                .append(group.getDescription()).append("\n");
-                    }
-
                     if (group instanceof Faction faction) {
-                        msg[0] = msg[0].append("Total Power: ").withColor(new Color(255, 85, 255))
-                                .append(String.format("%.2f", faction.getTotalPower())).append("\n");
-                        msg[0] = msg[0].append("Raidable: ").withColor(Color.RED)
-                                .append(faction.isRaidable() ? "YES" : "NO")
-                                .withColor(faction.isRaidable() ? Color.RED : Color.GREEN).append("\n");
+                        msg[0] = msg[0].append("\tTotal Power: ").append(String.format("%.2f", faction.getTotalPower()))
+                                .append("\n");
                     }
                     if (group instanceof Guild guild) {
-                        msg[0] = msg[0].append("Level: ").withColor(Color.CYAN)
-                                .append(String.valueOf(guild.getLevel())).append("\n");
+                        msg[0] = msg[0].append("\tLevel: ")
+                                .append(String.valueOf(guild.getLevel())).append("\n\n");
                     }
-
-                    msg[0] = msg[0].append("Use: ").withColor(Color.YELLOW)
-                            .append("/group accept " + group.getName()).withColor(Color.GREEN)
-                            .append(" to join\n")
-                            .append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n").withColor(Color.CYAN)
-                            .append("\n");
                 });
 
         sender.sendMessage(msg[0].toMessage());
@@ -451,14 +431,16 @@ public class MembershipService {
         if (group == null)
             return;
 
-        final ChatFormatter.StyledText[] msg = {ChatFormatter.of("=== Roles for " + group.getName() + " ===\n\n")
+        final ChatFormatter.StyledText[] msg = {ChatFormatter.of("=== Roles for " + group.getName() + " ===\n")
                 .withColor(Color.YELLOW).withBold()};
 
         if (group.getRoles().isEmpty()) {
             msg[0] = msg[0].append("No roles found.").withColor(Color.GRAY);
         } else {
+            Set<String> seenRoles = new HashSet<>();
             group.getRoles().stream()
                     .sorted(Comparator.comparingInt(GroupRole::getPriority).reversed())
+                    .filter(role -> seenRoles.add(role.getName().toLowerCase()))
                     .forEach(role -> {
                         String perms = role.getPermissions().stream()
                                 .map(Permission::name)
@@ -467,22 +449,11 @@ public class MembershipService {
                         Color roleColor = role.getPriority() >= 100 ? new Color(255, 170, 0)
                                 : role.getPriority() >= 50 ? Color.BLUE : Color.GRAY;
 
-                        msg[0] = msg[0].append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-\n").withColor(Color.CYAN)
-                                .append("Role: ").withColor(Color.YELLOW).withBold()
-                                .append(role.getName()).withColor(roleColor).append("\n")
-                                .append("Priority: ").withColor(Color.GREEN)
-                                .append(role.getPriority() + "\n")
-                                .append("Permissions: ").withColor(Color.CYAN)
-                                .append(perms.isEmpty() ? "None" : perms).append("\n")
-                                .append("Members with this role: ").withColor(Color.WHITE);
-
-                        long memberCount = group.getMembers().stream()
-                                .filter(m -> m.getRoleId().equals(role.getId()))
-                                .count();
-                        msg[0] = msg[0].append(String.valueOf(memberCount)).append("\n");
+                        msg[0] = msg[0]
+                                .append("Role: ").withBold().append(role.getName()).append("\n")
+                                .append("\tPriority: ").append(role.getPriority() + "\n")
+                                .append("\tPermissions: ").append(perms.isEmpty() ? "None" : perms).append("\n");
                     });
-
-            msg[0] = msg[0].append("-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-").withColor(Color.CYAN);
         }
         sender.sendMessage(msg[0].toMessage());
     }
@@ -492,8 +463,8 @@ public class MembershipService {
         if (group == null)
             return;
 
-        final ChatFormatter.StyledText[] msg = {ChatFormatter.of("=== Members of " + group.getName() + " ===\n\n")
-                .withColor(Color.YELLOW).withBold()};
+        final ChatFormatter.StyledText[] msg = {
+                ChatFormatter.of("=== Members of " + group.getName() + " ===\n").withBold()};
 
         if (group.getMembers().isEmpty()) {
             msg[0] = msg[0].append("No members found.").withColor(Color.GRAY);
@@ -511,22 +482,11 @@ public class MembershipService {
                         String roleName = role != null ? role.getName() : "Unknown";
                         boolean isLeader = member.getPlayerId().equals(group.getLeaderId());
 
-                        msg[0] = msg[0].append("● ").withColor(isLeader ? new Color(255, 215, 0) : Color.GREEN)
-                                .append(member.getPlayerName()).withBold()
-                                .append(isLeader ? " ★" : "").withColor(new Color(255, 215, 0))
-                                .append("\n")
-                                .append("  Role: ").withColor(Color.WHITE)
-                                .append(roleName).withColor(Color.CYAN)
-                                .append("\n")
-                                .append("  Balance: ").withColor(Color.WHITE)
-                                .append(String.format("%.2f", member.getBankBalance()))
-                                .withColor(new Color(255, 170, 0))
-                                .append("\n")
-                                .append("  Joined: ").withColor(Color.WHITE)
-                                .append(member.getJoinDate() != null ? member.getJoinDate().toLocalDate().toString()
-                                        : "N/A")
-                                .withColor(Color.GRAY)
-                                .append("\n\n");
+                        msg[0] = msg[0].append("- ").withColor(new Color(113, 113, 113)).append(member.getPlayerName())
+                                .withBold()
+                                .append("\n\t")
+                                .append("Role: ").withColor(Color.WHITE).append(roleName).withBold()
+                                .append("\n");
                     });
         }
         sender.sendMessage(msg[0].toMessage());

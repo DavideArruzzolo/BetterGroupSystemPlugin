@@ -32,7 +32,7 @@ public class AdminDisbandCommand extends AbstractPlayerCommand {
 
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
-            @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+                           @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
         adminService.adminDisband(player, groupName.get(ctx));
     }
 }

@@ -217,21 +217,21 @@ public class DiplomacyService {
 
         Set<UUID> pendingRequests = allyRequests.get(group.getId());
 
-        ChatFormatter.StyledText msg = ChatFormatter.of("=== Pending Alliance Requests ===\n\n")
-                .withColor(Color.YELLOW).withBold();
+        ChatFormatter.StyledText msg = ChatFormatter.of("=== Pending Alliance Requests ===\n")
+                .withBold();
 
         if (pendingRequests == null || pendingRequests.isEmpty()) {
-            msg = msg.append("No pending alliance requests.").withColor(Color.GRAY);
+            msg = msg.append("No pending alliance requests.");
         } else {
             for (UUID requestingGroupId : pendingRequests) {
                 Group requestingGroup = groupService.getGroup(requestingGroupId);
                 if (requestingGroup != null) {
-                    msg = msg.append("  ● ").withColor(Color.GREEN)
-                            .append(requestingGroup.getName()).withColor(Color.GREEN)
-                            .append(" (" + requestingGroup.getTag() + ")\n").withColor(Color.GRAY);
+                    msg = msg.append("\t- ")
+                            .append(requestingGroup.getName())
+                            .append(" (" + requestingGroup.getTag() + ")\n");
                 }
             }
-            msg = msg.append("\nUse '/faction acceptally <name>' or '/faction denyally <name>'").withColor(Color.GRAY);
+            msg = msg.append("\nUse '/faction acceptally <name>' or '/faction denyally <name>'");
         }
 
         sender.sendMessage(msg.toMessage());
@@ -255,11 +255,10 @@ public class DiplomacyService {
             return;
 
         final ChatFormatter.StyledText[] msg = {
-                ChatFormatter.of("=== Diplomatic Relations for " + group.getName() + " ===\n\n")
-                        .withColor(Color.YELLOW).withBold() };
+                ChatFormatter.of("=== Diplomatic Relations for " + group.getName() + " ===\n").withBold()};
 
         if (group.getDiplomaticRelations().isEmpty()) {
-            msg[0] = msg[0].append("No diplomatic relations set.").withColor(Color.GRAY);
+            msg[0] = msg[0].append("No diplomatic relations set.");
         } else {
 
             Map<DiplomacyStatus, List<Group>> relationsByStatus = new HashMap<>();
@@ -272,33 +271,33 @@ public class DiplomacyService {
             });
 
             if (relationsByStatus.containsKey(DiplomacyStatus.ALLY)) {
-                msg[0] = msg[0].append("Allies:\n").withColor(Color.GREEN).withBold();
+                msg[0] = msg[0].append("Allies:\n").withBold();
                 for (Group ally : relationsByStatus.get(DiplomacyStatus.ALLY)) {
-                    msg[0] = msg[0].append("  ● ").withColor(Color.GREEN)
-                            .append(ally.getName()).withColor(Color.GREEN)
-                            .append(" (" + ally.getTag() + ")\n").withColor(Color.GRAY);
+                    msg[0] = msg[0].append("\t- ")
+                            .append(ally.getName())
+                            .append(" (" + ally.getTag() + ")\n");
                 }
                 msg[0] = msg[0].append("\n");
             }
 
             if (relationsByStatus.containsKey(DiplomacyStatus.ENEMY)) {
-                msg[0] = msg[0].append("Enemies:\n").withColor(Color.RED).withBold();
+                msg[0] = msg[0].append("Enemies:\n").withBold();
                 for (Group enemy : relationsByStatus.get(DiplomacyStatus.ENEMY)) {
-                    msg[0] = msg[0].append("  ● ").withColor(Color.RED)
-                            .append(enemy.getName()).withColor(Color.RED)
-                            .append(" (" + enemy.getTag() + ")\n").withColor(Color.GRAY);
+                    msg[0] = msg[0].append("\t- ")
+                            .append(enemy.getName())
+                            .append(" (" + enemy.getTag() + ")\n");
                 }
                 msg[0] = msg[0].append("\n");
             }
 
-            if (relationsByStatus.containsKey(DiplomacyStatus.NEUTRAL)) {
-                msg[0] = msg[0].append("Neutral:\n").withColor(Color.GRAY).withBold();
-                for (Group neutral : relationsByStatus.get(DiplomacyStatus.NEUTRAL)) {
-                    msg[0] = msg[0].append("  ● ").withColor(Color.GRAY)
-                            .append(neutral.getName()).withColor(Color.GRAY)
-                            .append(" (" + neutral.getTag() + ")\n").withColor(Color.GRAY);
-                }
-            }
+//            if (relationsByStatus.containsKey(DiplomacyStatus.NEUTRAL)) {
+//                msg[0] = msg[0].append("Neutral:\n").withBold();
+//                for (Group neutral : relationsByStatus.get(DiplomacyStatus.NEUTRAL)) {
+//                    msg[0] = msg[0].append("  ● ")
+//                            .append(neutral.getName())
+//                            .append(" (" + neutral.getTag() + ")\n");
+//                }
+//            }
         }
         sender.sendMessage(msg[0].toMessage());
     }

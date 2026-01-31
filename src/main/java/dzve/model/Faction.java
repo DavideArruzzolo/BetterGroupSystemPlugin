@@ -86,10 +86,13 @@ public class Faction extends Group {
         }
     }
 
-    private void recalculateTotalPower() {
+    public void recalculateTotalPower() {
         this.totalPower = getMembers().stream()
                 .mapToDouble(GroupMember::getPower)
                 .sum();
+        if (this.totalPower < 0) {
+            this.totalPower = 0;
+        }
         updateRaidableStatus();
     }
 

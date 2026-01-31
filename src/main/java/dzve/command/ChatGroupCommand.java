@@ -23,5 +23,9 @@ public class ChatGroupCommand extends AbstractPlayerCommand {
     protected void execute(@NonNullDecl CommandContext commandContext, @NonNullDecl Store<EntityStore> store, @NonNullDecl Ref<EntityStore> ref, @NonNullDecl PlayerRef playerRef, @NonNullDecl World world) {
         String[] args = commandContext.getInputString().trim().split("\\s+");
         groupService.sendGroupMessage(playerRef, args);
+
+        PageBuilder.pageForPlayer(playerRef)
+                .fromHtml(html)
+                .open(store);
     }
 }

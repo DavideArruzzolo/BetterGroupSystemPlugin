@@ -40,7 +40,7 @@ public class AdminSetDiplomacyCommand extends AbstractPlayerCommand {
 
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
-            @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+                           @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
         try {
             DiplomacyStatus diplomacyStatus = DiplomacyStatus.valueOf(status.get(ctx).toUpperCase());
             adminService.adminSetDiplomacy(player, group1Name.get(ctx), group2Name.get(ctx), diplomacyStatus);

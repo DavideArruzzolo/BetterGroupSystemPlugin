@@ -35,11 +35,11 @@ import static dzve.model.GroupType.FACTION;
 
 public class GroupService {
 
-    // private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
-    private static final GroupService instance = new GroupService();
     private static final NotificationService notificationService = NotificationService.getInstance();
     private static final Pattern NAME_PATTERN = Pattern.compile("^[\\p{L}\\p{N}_]+$");
     private static final Pattern HEX_PATTERN = Pattern.compile("^#[0-9a-fA-F]{6}$");
+    // private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
+    private static GroupService instance;
     private static BetterGroupSystemPluginConfig config = null;
     private final dzve.database.DatabaseManager dbManager;
     private final dzve.database.dao.GroupDao groupDao;
@@ -61,10 +61,13 @@ public class GroupService {
     private final java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors
             .newSingleThreadExecutor();
 
+    private boolean dbConnected = false;
+
     private GroupService() {
         this.dbManager = new dzve.database.DatabaseManager(DATA_FOLDER);
         try {
             this.dbManager.connect();
+            this.dbConnected = true;
         } catch (Exception e) {
             LogService.error("GROUP_SERVICE", "Failed to connect to database!", e);
         }
@@ -74,7 +77,10 @@ public class GroupService {
         this.economyService = new EconomyService(this);
         this.diplomacyService = new DiplomacyService(this);
         this.membershipService = new MembershipService(this);
-        loadGroups();
+
+        if (!dbConnected) {
+            LogService.error("GROUP_SERVICE", "Skipping group loading due to database connection failure.", null);
+        }
 
         // Start Sync Job
         // startSyncJob();
@@ -93,11 +99,23 @@ public class GroupService {
             throw new IllegalArgumentException("Config cannot be null during initialization");
         }
         config = betterGroupSystemPluginConfig;
+        getInstanceInternal().loadGroups();
     }
 
     public static GroupService getInstance() {
         if (config == null) {
             throw new IllegalStateException("GroupService not initialized! Call initialize() first.");
+        }
+        return getInstanceInternal();
+    }
+
+    private static GroupService getInstanceInternal() {
+        if (instance == null) {
+            synchronized (GroupService.class) {
+                if (instance == null) {
+                    instance = new GroupService();
+                }
+            }
         }
         return instance;
     }
@@ -111,10 +129,13 @@ public class GroupService {
                 LogService.warn("GROUP_SERVICE", "GroupService.getInstance(null) called before config initialization!");
             }
         }
-        return instance;
+        return getInstanceInternal();
     }
 
     private void loadGroups() {
+        if (!dbConnected)
+            return;
+
         groups.clear();
         playerGroupMap.clear();
         namesGroups.clear();
@@ -125,6 +146,12 @@ public class GroupService {
         if (loadedGroups != null) {
             this.groups.putAll(loadedGroups);
             groups.values().forEach(this::cacheGroupData);
+
+            groups.values().stream()
+                    .filter(g -> g instanceof Faction)
+                    .map(g -> (Faction) g)
+                    .forEach(Faction::recalculateTotalPower);
+
             LogService.info("GROUP_SERVICE", "Loaded " + groups.size() + " groups from database.");
         }
 
@@ -370,7 +397,7 @@ public class GroupService {
     }
 
     public void teleportHome(PlayerRef sender, String name, Store<EntityStore> store, Ref<EntityStore> ref,
-            World world) {
+                             World world) {
         territoryService.teleportHome(sender, name, store, ref, world);
     }
 
@@ -448,8 +475,8 @@ public class GroupService {
                 .append("Members: ")
                 .append(group.getMembers().size() + " / "
                         + (group.getType().equals(FACTION) ? getConfig().getMaxSize()
-                                : getConfig().getMaxSize()
-                                        + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel())
+                        : getConfig().getMaxSize()
+                        + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel())
                         + "\n")
                 .withBold()
                 .append("Claims: ")
@@ -492,7 +519,6 @@ public class GroupService {
                             : "Not allowed to see this info\n")
                     .withBold();
         }
-        msg = msg.append("#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#");
 
         sender.sendMessage(msg.toMessage());
     }
@@ -540,7 +566,7 @@ public class GroupService {
             member.setDefaultHome(home.getId());
             notify(sender, "Home " + homeName + " is now your default.", false);
         }
-        saveGroups();
+        persistUpdateMember(group.getId(), member);
     }
 
     public void setDiplomacy(PlayerRef sender, String targetGroupName, DiplomacyStatus status) {
@@ -698,7 +724,7 @@ public class GroupService {
     }
 
     private boolean validateIdentifier(PlayerRef player, String val, int min, int max, Set<String> cache,
-            String field) {
+                                       String field) {
         if (val.length() < min || val.length() > max) {
             notify(player, field + " length invalid.");
             return false;

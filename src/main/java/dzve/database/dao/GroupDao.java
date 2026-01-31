@@ -42,18 +42,33 @@ public class GroupDao {
                     // Construct placeholder objects to populate
                     // Note: We are bypassing the constructor that requires PlayerRef
                     if ("GUILD".equals(typeStr)) {
-                        group = new Guild(name, tag, desc, color, null);
-                        if (group instanceof Guild guild) {
-                            guild.setLevel(rs.getInt("level"));
-                            // guild.setMoneyToNextLevel(rs.getDouble("money_to_next_level")); // method
-                            // must exist
-                        }
+                        group = Guild.builder()
+                                .id(id)
+                                .name(name)
+                                .tag(tag)
+                                .description(desc)
+                                .color(color)
+                                .leaderId(leaderId)
+                                .createdAt(createdAtEpoch > 0 ? new Timestamp(createdAtEpoch).toLocalDateTime()
+                                        : java.time.LocalDateTime.now())
+                                .level(rs.getInt("level"))
+                                .moneyToNextLevel(rs.getDouble("money_to_next_level"))
+                                .bankBalance(rs.getDouble("bank_balance"))
+                                .build();
                     } else {
-                        group = new Faction(name, tag, desc, color, null);
-                        if (group instanceof Faction faction) {
-                            faction.setKills(rs.getInt("kills"));
-                            faction.setDeaths(rs.getInt("deaths"));
-                        }
+                        group = Faction.builder()
+                                .id(id)
+                                .name(name)
+                                .tag(tag)
+                                .description(desc)
+                                .color(color)
+                                .leaderId(leaderId)
+                                .createdAt(createdAtEpoch > 0 ? new Timestamp(createdAtEpoch).toLocalDateTime()
+                                        : java.time.LocalDateTime.now())
+                                .kills(rs.getInt("kills"))
+                                .deaths(rs.getInt("deaths"))
+                                .bankBalance(rs.getDouble("bank_balance"))
+                                .build();
                     }
 
                     // Force ID
@@ -174,14 +189,16 @@ public class GroupDao {
                 if (group == null)
                     continue;
 
-                GroupHome home = new GroupHome(
-                        rs.getString("name"),
-                        rs.getString("world_name"),
-                        rs.getDouble("x"),
-                        rs.getDouble("y"),
-                        rs.getDouble("z"),
-                        (float) rs.getDouble("yaw"),
-                        (float) rs.getDouble("pitch"));
+                GroupHome home = GroupHome.builder()
+                        .id(UUID.fromString(rs.getString("home_id")))
+                        .name(rs.getString("name"))
+                        .world(rs.getString("world_name"))
+                        .x(rs.getDouble("x"))
+                        .y(rs.getDouble("y"))
+                        .z(rs.getDouble("z"))
+                        .yaw((float) rs.getDouble("yaw"))
+                        .pitch((float) rs.getDouble("pitch"))
+                        .build();
                 group.getHomes().add(home);
             }
         } catch (SQLException e) {
@@ -245,8 +262,10 @@ public class GroupDao {
 
                     double power = rs.getDouble("player_power");
                     double contribution = rs.getDouble("contribution");
+                    double bankBalance = rs.getDouble("bank_balance");
                     member.setPower(power);
                     member.setContribution(contribution);
+                    member.setBankBalance(bankBalance);
 
                     // Add to group's member set directly
                     group.getMembers().add(member);
@@ -380,7 +399,7 @@ public class GroupDao {
     // --- Members ---
 
     public void addMember(UUID groupId, GroupMember member) {
-        String sql = "INSERT INTO members (player_id, group_id, player_name, role_id, joined_at, last_online, default_home_id, player_power, contribution) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO members (player_id, group_id, player_name, role_id, joined_at, last_online, default_home_id, player_power, contribution, bank_balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, member.getPlayerId().toString());
@@ -392,6 +411,7 @@ public class GroupDao {
             stmt.setString(7, member.getDefaultHome() != null ? member.getDefaultHome().toString() : null);
             stmt.setDouble(8, member.getPower());
             stmt.setDouble(9, member.getContribution());
+            stmt.setDouble(10, member.getBankBalance());
             stmt.executeUpdate();
         } catch (SQLException e) {
             LOGGER.atSevere().withCause(e).log("Failed to add member " + member.getPlayerName());
@@ -411,7 +431,7 @@ public class GroupDao {
     }
 
     public void updateMember(UUID groupId, GroupMember member) {
-        String sql = "UPDATE members SET role_id=?, last_online=?, default_home_id=?, player_power=?, contribution=? WHERE group_id=? AND player_id=?";
+        String sql = "UPDATE members SET role_id=?, last_online=?, default_home_id=?, player_power=?, contribution=?, bank_balance=? WHERE group_id=? AND player_id=?";
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, member.getRoleId() != null ? member.getRoleId().toString() : null);
@@ -419,8 +439,9 @@ public class GroupDao {
             stmt.setString(3, member.getDefaultHome() != null ? member.getDefaultHome().toString() : null);
             stmt.setDouble(4, member.getPower());
             stmt.setDouble(5, member.getContribution());
-            stmt.setString(6, groupId.toString());
-            stmt.setString(7, member.getPlayerId().toString());
+            stmt.setDouble(6, member.getBankBalance());
+            stmt.setString(7, groupId.toString());
+            stmt.setString(8, member.getPlayerId().toString());
             stmt.executeUpdate();
         } catch (SQLException e) {
             LOGGER.atSevere().withCause(e).log("Failed to update member " + member.getPlayerName());

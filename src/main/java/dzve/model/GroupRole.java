@@ -37,7 +37,7 @@ public class GroupRole {
     }
 
     public static Set<GroupRole> initializeRoles() {
-        return Set.of(
+        return new java.util.HashSet<>(Set.of(
                 new GroupRole("Recruit", "Recruit", 0, true, Set.of(
                         Permission.CAN_TELEPORT_HOME,
                         Permission.CAN_CHAT_INTERNAL)),
@@ -71,7 +71,7 @@ public class GroupRole {
                         Permission.CAN_MANAGE_ROLE,
                         Permission.CAN_MANAGE_BANK,
                         Permission.CAN_UPDATE_GROUP,
-                        Permission.CAN_UPGRADE_GUILD)));
+                        Permission.CAN_UPGRADE_GUILD))));
     }
 
     public GroupRole copy() {

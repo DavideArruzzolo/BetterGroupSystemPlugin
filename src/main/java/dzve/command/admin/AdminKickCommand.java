@@ -34,7 +34,7 @@ public class AdminKickCommand extends AbstractPlayerCommand {
 
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
-            @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+                           @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
         adminService.adminKick(player, groupName.get(ctx), playerName.get(ctx));
     }
 }

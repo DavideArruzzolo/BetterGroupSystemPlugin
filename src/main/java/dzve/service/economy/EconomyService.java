@@ -17,6 +17,31 @@ public class EconomyService {
     }
 
     public void withdraw(PlayerRef sender, double amount) {
+        if (amount <= 0) {
+            groupService.notify(sender, "Amount must be positive.");
+            return;
+        }
+
+        Group group = groupService.getGroupOrNotify(sender);
+        if (group == null)
+            return;
+
+        double playerBalance = group.getBalance(sender.getUuid());
+        if (playerBalance < amount) {
+            groupService.notify(sender,
+                    "Insufficient personal balance. You have " + playerBalance + " but need " + amount);
+            return;
+        }
+
+        group.withdraw(amount, sender.getUuid());
+        LogService.info("ECONOMY", "Player " + sender.getUsername() + " withdrew " + amount + " from personal balance in group " + group.getName());
+
+        groupService.persistUpdateMember(group.getId(), group.getMember(sender.getUuid()));
+
+        groupService.notify(sender, "Withdrawn " + amount + " from your personal balance.", false);
+    }
+
+    public void withdrawFromGroup(PlayerRef sender, double amount) {
         Group group = groupService.getGroupOrNotify(sender);
         if (group == null)
             return;
@@ -37,21 +62,19 @@ public class EconomyService {
             return;
         }
 
-        group.withdrawFromGroup(amount, sender.getUuid());
+        if (group.withdrawFromGroup(amount, sender.getUuid())) {
+            // Transfer to player balance (Symmetric to depositToGroup)
+            group.deposit(amount, sender.getUuid());
+            LogService.info("ECONOMY", "Player " + sender.getUsername() + " withdrew " + amount + " from group "
+                    + group.getName() + " to personal balance");
 
-        // Transfer to player balance (Symmetric to depositToGroup)
-        group.deposit(amount, sender.getUuid());
-        LogService.info("ECONOMY", "Player " + sender.getUsername() + " withdrew " + amount + " from group "
-                + group.getName() + " to personal balance");
+            groupService.persistUpdateGroup(group);
+            groupService.persistUpdateMember(group.getId(), group.getMember(sender.getUuid()));
 
-        groupService.persistUpdateGroup(group);
-        groupService.persistUpdateMember(group.getId(), group.getMember(sender.getUuid()));
-
-        groupService.notify(sender, "Withdrawn " + amount + " to your personal balance.", false);
-    }
-
-    public void withdrawFromGroup(PlayerRef sender, double amount) {
-        withdraw(sender, amount);
+            groupService.notify(sender, "Withdrawn " + amount + " to your personal balance.", false);
+        } else {
+            groupService.notify(sender, "Failed to withdraw from group bank.");
+        }
     }
 
     public void deposit(PlayerRef sender, double amount) {

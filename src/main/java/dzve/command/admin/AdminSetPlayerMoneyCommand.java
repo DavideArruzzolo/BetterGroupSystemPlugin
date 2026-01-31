@@ -34,7 +34,7 @@ public class AdminSetPlayerMoneyCommand extends AbstractPlayerCommand {
 
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
-            @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+                           @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
         try {
             adminService.adminSetPlayerMoney(player, playerName.get(ctx), amount.get(ctx));
         } catch (Exception e) {

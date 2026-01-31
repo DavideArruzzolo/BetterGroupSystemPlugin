@@ -385,8 +385,7 @@ public class TerritoryService {
             return;
         }
 
-        final ChatFormatter.StyledText[] msg = {ChatFormatter.of("=== Homes for " + group.getName() + " ===\n\n")
-                .withColor(Color.YELLOW).withBold()};
+        final ChatFormatter.StyledText[] msg = {ChatFormatter.of("=== Homes for " + group.getName() + " ===\n\n").withBold()};
 
         Set<GroupHome> homes = group.getHomes();
         if (homes.isEmpty()) {
@@ -397,18 +396,7 @@ public class TerritoryService {
                     .forEach(home -> {
                         GroupMember member = group.getMember(sender.getUuid());
                         boolean isDefault = member != null && home.getId().equals(member.getDefaultHome());
-                        msg[0] = msg[0].append("● ").withColor(Color.GREEN)
-                                .append(home.getName()).withBold()
-                                .append(isDefault ? " (default)" : "").withColor(new Color(255, 170, 0))
-                                .append("\n")
-                                .append("  Location: ").withColor(Color.WHITE)
-                                .append("x=" + (int) home.getX() + ", y=" + (int) home.getY() + ", z="
-                                        + (int) home.getZ())
-                                .withColor(Color.CYAN)
-                                .append("\n")
-                                .append("  World: ").withColor(Color.WHITE)
-                                .append(home.getWorld()).withColor(Color.GREEN)
-                                .append("\n\n");
+                        msg[0] = msg[0].append("- ").append(home.getName()).withBold().append(isDefault ? " (default)\n" : "\n");
                     });
         }
         sender.sendMessage(msg[0].toMessage());
