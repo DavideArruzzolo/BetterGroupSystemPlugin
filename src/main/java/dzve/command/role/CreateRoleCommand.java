@@ -21,7 +21,8 @@ public class CreateRoleCommand extends AbstractPlayerCommand {
     @Nonnull
     private final RequiredArg<String> name = withRequiredArg("name", "Role name", ArgTypes.STRING);
     @Nonnull
-    private final OptionalArg<String> grants = withOptionalArg("grants", "Permissions (space separated)", ArgTypes.STRING);
+    private final OptionalArg<String> grants = withOptionalArg("grants", "Permissions (space separated)",
+            ArgTypes.STRING);
 
     public CreateRoleCommand(GroupService groupService) {
         super("createRole", "Create a new custom role");
@@ -29,9 +30,10 @@ public class CreateRoleCommand extends AbstractPlayerCommand {
     }
 
     @Override
-    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
+            @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
         String grantsStr = grants.get(ctx);
         groupService.createRole(player, name.get(ctx),
-                grantsStr != null ? Arrays.asList(grantsStr.split(" ")) : Collections.emptyList());
+                grantsStr != null ? Arrays.asList(grantsStr.split("[,\\s]+")) : Collections.emptyList());
     }
 }

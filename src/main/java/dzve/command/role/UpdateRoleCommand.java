@@ -21,9 +21,11 @@ public class UpdateRoleCommand extends AbstractPlayerCommand {
     @Nonnull
     private final RequiredArg<String> name = withRequiredArg("name", "Role name", ArgTypes.STRING);
     @Nonnull
-    private final OptionalArg<String> addGrants = withOptionalArg("add_grants", "Permissions to add (space separated)", ArgTypes.STRING);
+    private final OptionalArg<String> addGrants = withOptionalArg("add_grants", "Permissions to add (space separated)",
+            ArgTypes.STRING);
     @Nonnull
-    private final OptionalArg<String> removeGrants = withOptionalArg("remove_grants", "Permissions to remove (space separated)", ArgTypes.STRING);
+    private final OptionalArg<String> removeGrants = withOptionalArg("remove_grants",
+            "Permissions to remove (space separated)", ArgTypes.STRING);
 
     public UpdateRoleCommand(GroupService groupService) {
         super("updateRole", "Update a role's permissions");
@@ -31,11 +33,12 @@ public class UpdateRoleCommand extends AbstractPlayerCommand {
     }
 
     @Override
-    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
+            @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
         String addGrantsStr = addGrants.get(ctx);
         String removeGrantsStr = removeGrants.get(ctx);
         groupService.updateRole(player, name.get(ctx),
-                addGrantsStr != null ? Arrays.asList(addGrantsStr.split(" ")) : Collections.emptyList(),
-                removeGrantsStr != null ? Arrays.asList(removeGrantsStr.split(" ")) : Collections.emptyList());
+                addGrantsStr != null ? Arrays.asList(addGrantsStr.split("[,\\s]+")) : Collections.emptyList(),
+                removeGrantsStr != null ? Arrays.asList(removeGrantsStr.split("[,\\s]+")) : Collections.emptyList());
     }
 }

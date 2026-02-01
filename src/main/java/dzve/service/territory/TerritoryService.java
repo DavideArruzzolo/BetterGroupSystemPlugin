@@ -100,7 +100,7 @@ public class TerritoryService {
             return null;
         if (!group.getLeaderId().equals(player.getUuid())
                 && !group.getRole(group.getMember(player.getUuid()).getRoleId())
-                .hasPermission(Permission.CAN_MANAGE_CLAIM)) {
+                        .hasPermission(Permission.CAN_MANAGE_CLAIM)) {
             groupService.notify(player, "You don't have permission to do that.");
             return null;
         }
@@ -148,7 +148,7 @@ public class TerritoryService {
     }
 
     private void convertChunkFromRaidable(Group raidableFaction, Group newOwner, ChunkInfo chunkInfo,
-                                          PlayerRef sender) {
+            PlayerRef sender) {
         raidableFaction.removeClaim(chunkInfo.cx, chunkInfo.cz, chunkInfo.world);
         chunkOwnerCache.remove(new ChunkKey(chunkInfo.world, chunkInfo.cx, chunkInfo.cz));
 
@@ -281,13 +281,16 @@ public class TerritoryService {
         if (group == null || !groupService.hasPerm(group, sender, Permission.CAN_MANAGE_HOME))
             return;
 
+        // Check for duplicate name
         if (group.getHome(name) != null) {
-            if (!groupService.hasPerm(group, sender, Permission.CAN_MANAGE_HOME)) {
-                groupService.notify(sender, "You don't have permission to overwrite an existing home.");
-                return;
-            }
-            group.removeHome(name);
-        } else if (group.getHomeCount() >= GroupService.getConfig().getMaxHome()) {
+            groupService.notify(sender, "Home name is already duplicate.");
+            return;
+        }
+
+        // Check if max homes reached (only if we are not renaming/overwriting which is
+        // handled later depending on logic, but here we error on dup name so we
+        // proceed)
+        if (group.getHomeCount() >= GroupService.getConfig().getMaxHome()) {
             groupService.notify(sender, "Max homes reached.");
             return;
         }
@@ -296,6 +299,42 @@ public class TerritoryService {
         int cz = (int) sender.getTransform().getPosition().getZ() >> 5;
         if (!group.isChunkClaimed(cx, cz, world.getName())) {
             groupService.notify(sender, "Must be in claimed land.");
+            return;
+        }
+
+        int newX = (int) sender.getTransform().getPosition().getX();
+        int newY = (int) sender.getTransform().getPosition().getY();
+        int newZ = (int) sender.getTransform().getPosition().getZ();
+
+        // Check for integer coordinate match
+        GroupHome existingHomeAtLoc = null;
+        for (GroupHome home : group.getHomes()) {
+            if ((int) home.getX() == newX && (int) home.getY() == newY && (int) home.getZ() == newZ
+                    && home.getWorld().equals(world.getName())) {
+                existingHomeAtLoc = home;
+                break;
+            }
+        }
+
+        if (existingHomeAtLoc != null) {
+            // Rename existing home to new name
+            String oldName = existingHomeAtLoc.getName();
+            existingHomeAtLoc.setName(name);
+            // Update other properties if needed? The user said "aggiorna solo il nome"
+            // (update only the name).
+            // But we should probably update the exact precise coordinates too?
+            // "se la combinazione di questi valori e uguale al quella nuova aggiorna solo
+            // il nome"
+            // "if the combination of these values (int coords) is equal to the new one,
+            // update only the name"
+            // This implies the ID stays the same, but the name changes.
+
+            groupService.persistSaveHome(group.getId(), existingHomeAtLoc);
+            // Note: persistSaveHome usually does an UPSERT or UPDATE. If ID matches, it
+            // updates.
+            // Since we changed the name, and the ID remains, it should be fine.
+
+            groupService.notify(sender, "Home " + oldName + " renamed to " + name + ".", false);
             return;
         }
 
@@ -312,7 +351,7 @@ public class TerritoryService {
     }
 
     public void teleportHome(PlayerRef sender, String name, Store<EntityStore> store, Ref<EntityStore> ref,
-                             World world) {
+            World world) {
         Group group = groupService.getGroupOrNotify(sender);
         if (group == null || !groupService.hasPerm(group, sender, Permission.CAN_TELEPORT_HOME))
             return;
@@ -355,8 +394,8 @@ public class TerritoryService {
 
             HytaleServer.SCHEDULED_EXECUTOR.schedule(() -> world.execute(() -> {
                 Teleport teleport = Teleport.createForPlayer(
-                                new Vector3d(x, y, z),
-                                new Vector3f(home.getPitch(), home.getYaw(), 0))
+                        new Vector3d(x, y, z),
+                        new Vector3f(home.getPitch(), home.getYaw(), 0))
                         .setHeadRotation(new Vector3f(home.getPitch(), home.getYaw(), 0));
 
                 store.addComponent(ref, Teleport.getComponentType(), teleport);
@@ -380,7 +419,7 @@ public class TerritoryService {
         }
 
         final ChatFormatter.StyledText[] msg = {
-                ChatFormatter.of("=== Homes for " + group.getName() + " ===\n\n").withBold()};
+                ChatFormatter.of("=== Homes for " + group.getName() + " ===\n\n").withBold() };
 
         Set<GroupHome> homes = group.getHomes();
         if (homes.isEmpty()) {

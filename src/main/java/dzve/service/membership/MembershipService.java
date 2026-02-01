@@ -44,7 +44,7 @@ public class MembershipService {
         if (group.getMembers().size() >= (group.getType().equals(GroupType.FACTION)
                 ? GroupService.getConfig().getMaxSize()
                 : GroupService.getConfig().getMaxSize()
-                + GroupService.getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel())) {
+                        + GroupService.getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel())) {
             groupService.notify(sender, "Group full.");
             return;
         }
@@ -276,14 +276,26 @@ public class MembershipService {
             groupService.notify(sender, "Role not found.");
             return;
         }
-        if (role.isDefault()) {
-            groupService.notify(sender, "Cannot edit default role.");
-            return;
-        }
 
         Set<Permission> perms = new HashSet<>(role.getPermissions());
-        Set<Permission> addPerms = parsePerms(addGrants);
-        Set<Permission> removePerms = parsePerms(removeGrants);
+
+        Set<Permission> addPerms = null;
+        if (addGrants != null && !addGrants.isEmpty()) {
+            addPerms = parsePerms(addGrants);
+            if (addPerms == null) {
+                groupService.notify(sender, "Invalid permissions in add list.");
+                return;
+            }
+        }
+
+        Set<Permission> removePerms = null;
+        if (removeGrants != null && !removeGrants.isEmpty()) {
+            removePerms = parsePerms(removeGrants);
+            if (removePerms == null) {
+                groupService.notify(sender, "Invalid permissions in remove list.");
+                return;
+            }
+        }
 
         if (addPerms != null) {
             perms.addAll(addPerms);
@@ -382,9 +394,24 @@ public class MembershipService {
         try {
             return list.stream()
                     .map(s -> s.replace("\"", "").trim().replace(",", ""))
+                    .filter(s -> !s.isEmpty())
                     .map(s -> Permission.valueOf(s.toUpperCase().replace(".", "_")))
                     .collect(Collectors.toSet());
         } catch (IllegalArgumentException e) {
+            String invalid = list.stream()
+                    .map(s -> s.replace("\"", "").trim().replace(",", ""))
+                    .filter(s -> !s.isEmpty())
+                    .filter(s -> {
+                        try {
+                            Permission.valueOf(s.toUpperCase().replace(".", "_"));
+                            return false;
+                        } catch (IllegalArgumentException ex) {
+                            return true;
+                        }
+                    })
+                    .collect(Collectors.joining(", "));
+
+            LogService.warn("MEMBERSHIP", "Invalid permissions provided: " + invalid);
             return null;
         }
     }
@@ -400,7 +427,7 @@ public class MembershipService {
             return;
         }
 
-        final ChatFormatter.StyledText[] msg = {ChatFormatter.of("=== Pending Group Invitations ===\n").withBold()};
+        final ChatFormatter.StyledText[] msg = { ChatFormatter.of("=== Pending Group Invitations ===\n").withBold() };
 
         invites.stream()
                 .map(groupService::getGroup)
@@ -412,15 +439,12 @@ public class MembershipService {
                             .orElse("N/A");
 
                     msg[0] = msg[0].append("Group: ").withBold().append(group.getName()).append("\n")
-                            .append("Use /" + GroupService.getConfig().getAllCommandsPrefix() + " join "
-                                    + group.getName())
-                            .withColor(groupColor).append("\n")
                             .append("\tTag: ").append(group.getTag()).withColor(groupColor).append("\n")
                             .append("\tMembers: ").append(group.getMembers().size() + " / " +
                                     (group.getType().equals(GroupType.FACTION) ? GroupService.getConfig().getMaxSize()
                                             : GroupService.getConfig().getMaxSize()
-                                            + GroupService.getConfig().getSlotQuantityGainForLevel()
-                                            * ((Guild) group).getLevel()))
+                                                    + GroupService.getConfig().getSlotQuantityGainForLevel()
+                                                            * ((Guild) group).getLevel()))
                             .append("\n");
                     if (group instanceof Faction faction) {
                         msg[0] = msg[0].append("\tTotal Power: ").append(String.format("%.2f", faction.getTotalPower()))
@@ -440,8 +464,8 @@ public class MembershipService {
         if (group == null)
             return;
 
-        final ChatFormatter.StyledText[] msg = {ChatFormatter.of("=== Roles for " + group.getName() + " ===\n")
-                .withColor(Color.YELLOW).withBold()};
+        final ChatFormatter.StyledText[] msg = {
+                ChatFormatter.of("=== Roles for " + group.getName() + " ===\n").withBold() };
 
         if (group.getRoles().isEmpty()) {
             msg[0] = msg[0].append("No roles found.").withColor(Color.GRAY);
@@ -455,11 +479,8 @@ public class MembershipService {
                                 .map(Permission::name)
                                 .collect(Collectors.joining(", "));
 
-                        Color roleColor = role.getPriority() >= 100 ? new Color(255, 170, 0)
-                                : role.getPriority() >= 50 ? Color.BLUE : Color.GRAY;
-
                         msg[0] = msg[0]
-                                .append("Role: ").withBold().append(role.getName()).append("\n")
+                                .append("Role: ").append(role.getName()).withBold().append("\n")
                                 .append("\tPriority: ").append(role.getPriority() + "\n")
                                 .append("\tPermissions: ").append(perms.isEmpty() ? "None" : perms).append("\n");
                     });
@@ -473,7 +494,7 @@ public class MembershipService {
             return;
 
         final ChatFormatter.StyledText[] msg = {
-                ChatFormatter.of("=== Members of " + group.getName() + " ===\n").withBold()};
+                ChatFormatter.of("=== Members of " + group.getName() + " ===\n").withBold() };
 
         if (group.getMembers().isEmpty()) {
             msg[0] = msg[0].append("No members found.").withColor(Color.GRAY);

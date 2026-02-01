@@ -20,7 +20,8 @@ public class DiplomacyCommand extends AbstractPlayerCommand {
     @Nonnull
     private final RequiredArg<String> targetGroup = withRequiredArg("group", "Target group name", ArgTypes.STRING);
     @Nonnull
-    private final RequiredArg<String> status = withRequiredArg("status", "Status (ALLY, NEUTRAL, ENEMY)", ArgTypes.STRING);
+    private final RequiredArg<String> status = withRequiredArg("status", "Status (ALLY, NEUTRAL, ENEMY)",
+            ArgTypes.STRING);
 
     public DiplomacyCommand(GroupService groupService) {
         super("diplomacy", "Set relation with another group");
@@ -28,9 +29,10 @@ public class DiplomacyCommand extends AbstractPlayerCommand {
     }
 
     @Override
-    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
+    protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store,
+            @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef player, @Nonnull World world) {
         try {
-            DiplomacyStatus diplomacyStatus = DiplomacyStatus.valueOf(status.get(ctx).toUpperCase());
+            DiplomacyStatus diplomacyStatus = DiplomacyStatus.valueOf(status.get(ctx).trim().toUpperCase());
             groupService.setDiplomacy(player, targetGroup.get(ctx), diplomacyStatus);
         } catch (IllegalArgumentException e) {
             player.sendMessage(Message.raw("Invalid status. Use: ALLY, NEUTRAL, ENEMY"));

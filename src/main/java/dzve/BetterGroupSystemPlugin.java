@@ -49,6 +49,8 @@ public class BetterGroupSystemPlugin extends JavaPlugin {
 
         GroupService.initialize(config.get());
         groupService = GroupService.getInstance();
+        groupService.getDbManager().backup(config.get().getMaxBackups());
+
         baseGroupCommand = new BaseGroupCommand(config.get());
         this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.PlaceBlockProtectionSystem());
         this.getEntityStoreRegistry().registerSystem(new ClaimProtectionSystems.BreakBlockProtectionSystem());

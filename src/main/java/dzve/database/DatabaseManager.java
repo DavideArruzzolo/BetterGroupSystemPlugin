@@ -184,7 +184,44 @@ public class DatabaseManager {
         return DriverManager.getConnection(url, props);
     }
 
-    public void close() {
+    public void backup(int maxBackups) {
+        File loadedDb = new File(dataFolder, "groups.db");
+        if (!loadedDb.exists()) {
+            return;
+        }
 
+        File backupFolder = new File(dataFolder, "backups");
+        if (!backupFolder.exists()) {
+            backupFolder.mkdirs();
+        }
+
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
+        String timestamp = sdf.format(new java.util.Date());
+        File backupFile = new File(backupFolder, "groups_" + timestamp + ".db");
+
+        try {
+            java.nio.file.Files.copy(loadedDb.toPath(), backupFile.toPath());
+            LogService.info("DATABASE", "Database backup created: " + backupFile.getName());
+        } catch (java.io.IOException e) {
+            LogService.error("DATABASE", "Failed to create database backup", e);
+        }
+
+        // Rotation
+        File[] backups = backupFolder.listFiles((dir, name) -> name.endsWith(".db"));
+        if (backups != null && backups.length > maxBackups) {
+            java.util.Arrays.sort(backups, java.util.Comparator.comparingLong(File::lastModified));
+            int toDelete = backups.length - maxBackups;
+            for (int i = 0; i < toDelete; i++) {
+                if (backups[i].delete()) {
+                    LogService.info("DATABASE", "Deleted old backup: " + backups[i].getName());
+                }
+            }
+        }
+    }
+
+    public void close() {
+        // SQL connection is managed via try-with-resources or new connections on demand
+        // in this implementation.
+        // If there were a persistent connection pool, it should be closed here.
     }
 }

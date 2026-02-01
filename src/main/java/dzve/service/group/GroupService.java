@@ -42,6 +42,7 @@ public class GroupService {
 
     private static GroupService instance;
     private static BetterGroupSystemPluginConfig config = null;
+    @Getter
     private final dzve.database.DatabaseManager dbManager;
     private final dzve.database.dao.GroupDao groupDao;
     private final Map<UUID, Group> groups = new ConcurrentHashMap<>();
@@ -143,6 +144,12 @@ public class GroupService {
 
         Map<UUID, Group> loadedGroups = groupDao.loadAllGroups();
         if (loadedGroups != null) {
+            String mode = config.getPluginMode();
+            if ("GUILD".equalsIgnoreCase(mode)) {
+                loadedGroups.values().removeIf(g -> !(g instanceof Guild));
+            } else {
+                loadedGroups.values().removeIf(g -> !(g instanceof Faction));
+            }
             this.groups.putAll(loadedGroups);
             groups.values().forEach(this::cacheGroupData);
 
@@ -396,7 +403,7 @@ public class GroupService {
     }
 
     public void teleportHome(PlayerRef sender, String name, Store<EntityStore> store, Ref<EntityStore> ref,
-                             World world) {
+            World world) {
         territoryService.teleportHome(sender, name, store, ref, world);
     }
 
@@ -474,8 +481,8 @@ public class GroupService {
                 .append("Members: ")
                 .append(group.getMembers().size() + " / "
                         + (group.getType().equals(FACTION) ? getConfig().getMaxSize()
-                        : getConfig().getMaxSize()
-                        + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel())
+                                : getConfig().getMaxSize()
+                                        + getConfig().getSlotQuantityGainForLevel() * ((Guild) group).getLevel())
                         + "\n")
                 .withBold()
                 .append("Claims: ")
@@ -712,7 +719,7 @@ public class GroupService {
     }
 
     private boolean validateIdentifier(PlayerRef player, String val, int min, int max, Set<String> cache,
-                                       String field) {
+            String field) {
         if (val.length() < min || val.length() > max) {
             notify(player, field + " length invalid.");
             return false;

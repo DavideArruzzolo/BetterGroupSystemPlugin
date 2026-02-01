@@ -4,10 +4,7 @@ import com.hypixel.hytale.component.*;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.EntityEventSystem;
 import com.hypixel.hytale.math.vector.Vector3i;
-import com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent;
-import com.hypixel.hytale.server.core.event.events.ecs.DamageBlockEvent;
-import com.hypixel.hytale.server.core.event.events.ecs.PlaceBlockEvent;
-import com.hypixel.hytale.server.core.event.events.ecs.UseBlockEvent;
+import com.hypixel.hytale.server.core.event.events.ecs.*;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -144,6 +141,26 @@ public class ClaimProtectionSystems {
             Ref<EntityStore> ref = chunk.getReferenceTo(index);
             Vector3i pos = event.getTargetBlock();
             if (isProtected(store, ref, pos)) {
+                event.setCancelled(true);
+            }
+        }
+
+        @Override
+        public Query<EntityStore> getQuery() {
+            return Archetype.empty();
+        }
+    }
+
+    public static class InteractivelyPickupItemProtectionSystem extends EntityEventSystem<EntityStore, InteractivelyPickupItemEvent> {
+        public InteractivelyPickupItemProtectionSystem() {
+            super(InteractivelyPickupItemEvent.class);
+        }
+
+        @Override
+        public void handle(int index, ArchetypeChunk<EntityStore> chunk, @NonNullDecl Store<EntityStore> store,
+                           @NonNullDecl CommandBuffer<EntityStore> buf, InteractivelyPickupItemEvent event) {
+            Ref<EntityStore> ref = chunk.getReferenceTo(index);
+            if (isProtected(store, ref, null)) {
                 event.setCancelled(true);
             }
         }

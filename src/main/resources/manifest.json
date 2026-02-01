@@ -1,24 +1,27 @@
 {
-  "Group": "Dzve",
-  "Name": "BetterGroupSystemPlugin",
-  "Version": "0.0.518",
-  "Description": "Comprehensive Factions & Guilds plugin for Hytale servers with PvP power system and economic progression",
-  "Main": "dzve.BetterGroupSystemPlugin",
-  "Authors": [
-    {
-      "Name": "DZVE Development Team",
-      "Email": "dev@dzve.com",
-      "Url": "https://dzve.com"
-    }
-  ],
-  "Website": "https://github.com/dzve/hytale-factions-guilds",
-  "ServerVersion": "*",
-  "Dependencies": {
-  },
-  "OptionalDependencies": {
-  },
-  "LoadBefore": {
-  },
-  "DisabledByDefault": false,
-  "IncludesAssetPack": true
+    "Group": "Dzve",
+    "Name": "BetterGroupSystemPlugin",
+    "Version": "0.0.522",
+    "Description": "Comprehensive Factions & Guilds plugin for Hytale servers with PvP power system and economic progression",
+    "Main": "dzve.BetterGroupSystemPlugin",
+    "Authors": [
+        {
+            "Name": "DZVE Development Team",
+            "Email": "dev@dzve.com",
+            "Url": "https://dzve.com"
+        }
+    ],
+    "Website": "https://github.com/dzve/hytale-factions-guilds",
+    "ServerVersion": "*",
+    "Dependencies": {
+        
+    },
+    "OptionalDependencies": {
+        
+    },
+    "LoadBefore": {
+        
+    },
+    "DisabledByDefault": false,
+    "IncludesAssetPack": true
 }
