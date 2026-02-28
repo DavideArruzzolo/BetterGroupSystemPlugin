@@ -82,6 +82,6 @@ api.withdrawGroupBalance(groupId, 200.0);
 ---
 
 ##📦 Build e Deployment
-Costruzione: Esegui ./gradlew build per compilare il progetto includendo l'obfuscation di ProGuard.
-Test Locale: Usa ./gradlew runServer.
-Installazione: Sposta il .jar compilato nella cartella Hytale corrispondente al tuo OS (es. %APPDATA%/Roaming/Hytale/UserData/Mods/ su Windows). È raccomandato schedulare backup periodici del file groups.db.
+* **Costruzione**: Esegui ./gradlew build per compilare il progetto includendo l'obfuscation di ProGuard.
+* **Test Locale**: Usa ./gradlew runServer.
+* **Installazione**: Sposta il .jar compilato nella cartella Hytale corrispondente al tuo OS (es. %APPDATA%/Roaming/Hytale/UserData/Mods/ su Windows). È raccomandato schedulare backup periodici del file groups.db.
